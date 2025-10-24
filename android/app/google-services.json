@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "162753604657",
+    "project_id": "snappin-chat",
+    "storage_bucket": "snappin-chat.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:162753604657:android:dc9548f955f2c437563910",
+        "android_client_info": {
+          "package_name": "com.snappin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDs8vjdXtavfixSbzQ6jDR9ed3mlX9ETOw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
