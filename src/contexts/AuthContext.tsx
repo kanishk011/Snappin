@@ -19,13 +19,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     const unsubscribe = auth().onAuthStateChanged(async (authUser) => {
-      console.log('🔔 Auth state changed:', authUser ? `User: ${authUser.uid}` : 'No user (logged out)');
       if (authUser) {
         setUser(authUser);
         // Update user status to online
         await updateUserStatus(authUser.uid, 'online');
       } else {
-        console.log('👋 Setting user to null, should show AuthScreen now...');
         setUser(null);
       }
       setLoading(false);
@@ -42,22 +40,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const signUp = async (email: string, password: string, name: string) => {
     try {
-      console.log('🔐 Starting sign up process...');
       const userCredential = await auth().createUserWithEmailAndPassword(email, password);
-      console.log('✅ Firebase Auth user created:', userCredential.user.uid);
-
       // Update display name
       await userCredential.user.updateProfile({ displayName: name });
-      console.log('✅ Display name updated');
 
       // Create user document in Firestore
-      console.log('📝 About to create Firestore user document...');
       await createOrUpdateUser(userCredential.user.uid, {
         name,
         email,
         status: 'online',
       });
-      console.log('✅ Sign up process completed!');
     } catch (error) {
       console.error('❌ Sign up error:', error);
       throw error;
@@ -91,14 +83,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const signOut = async () => {
     try {
-      console.log('🚪 Starting sign out process...');
       if (user) {
-        console.log('📊 Updating user status to offline...');
         await updateUserStatus(user.uid, 'offline');
       }
-      console.log('🔐 Signing out from Firebase Auth...');
       await auth().signOut();
-      console.log('✅ Sign out successful!');
     } catch (error) {
       console.error('❌ Sign out error:', error);
       throw error;

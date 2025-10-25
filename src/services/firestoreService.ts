@@ -10,10 +10,6 @@ export const createOrUpdateUser = async (userId: string, userData: {
   status?: 'online' | 'offline';
 }) => {
   try {
-    console.log('📝 Creating/Updating user document:', userId, userData);
-    console.log('📁 Collection path:', USERS_COLLECTION);
-    console.log('🔑 Document ID:', userId);
-
     const docData = {
       _id: userId,
       ...userData,
@@ -21,15 +17,11 @@ export const createOrUpdateUser = async (userId: string, userData: {
       createdAt: firestore.FieldValue.serverTimestamp(),
     };
 
-    console.log('📄 Document data:', docData);
-
     await firestore()
       .collection(USERS_COLLECTION)
       .doc(userId)
       .set(docData, { merge: true });
 
-    console.log('✅ User document created successfully!');
-    console.log('🌐 Check Firebase Console at: https://console.firebase.google.com/');
   } catch (error) {
     console.error('❌ Error creating/updating user:', error);
     console.error('❌ Error details:', JSON.stringify(error, null, 2));
@@ -39,9 +31,6 @@ export const createOrUpdateUser = async (userId: string, userData: {
 
 export const updateUserStatus = async (userId: string, status: 'online' | 'offline') => {
   try {
-    console.log('📊 Updating user status:', userId, status);
-    console.log('📁 Collection path:', USERS_COLLECTION);
-
     // Use set with merge instead of update to create if doesn't exist
     await firestore()
       .collection(USERS_COLLECTION)
@@ -51,8 +40,6 @@ export const updateUserStatus = async (userId: string, status: 'online' | 'offli
         lastSeen: firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
 
-    console.log('✅ User status updated successfully!');
-    console.log('🌐 Document should now be visible in Firebase Console');
   } catch (error) {
     console.error('❌ Error updating user status:', error);
     console.error('❌ Error details:', JSON.stringify(error, null, 2));

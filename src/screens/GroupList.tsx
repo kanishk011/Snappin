@@ -27,8 +27,6 @@ const GroupList: React.FC = () => {
     return () => unsubscribe();
   }, [user]);
 
-  console.log("groupsgroups", groups);
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
