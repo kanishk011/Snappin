@@ -1,9 +1,18 @@
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
+import { 
+  getAuth, 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  signInAnonymously as firebaseSignInAnonymously,
+  onAuthStateChanged,
+  updateProfile,
+  User,
+} from '@react-native-firebase/auth';
 import { createOrUpdateUser, updateUserStatus } from '../services/firestoreService';
 
 interface AuthContextType {
-  user: FirebaseAuthTypes.User | null;
+  user: User | null;
   loading: boolean;
   signUp: (email: string, password: string, name: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
@@ -14,11 +23,12 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<FirebaseAuthTypes.User | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const auth = getAuth();
 
   useEffect(() => {
-    const unsubscribe = auth().onAuthStateChanged(async (authUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
       if (authUser) {
         setUser(authUser);
         // Update user status to online
@@ -40,9 +50,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const signUp = async (email: string, password: string, name: string) => {
     try {
-      const userCredential = await auth().createUserWithEmailAndPassword(email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       // Update display name
-      await userCredential.user.updateProfile({ displayName: name });
+      await updateProfile(userCredential.user, { displayName: name });
 
       // Create user document in Firestore
       await createOrUpdateUser(userCredential.user.uid, {
@@ -58,7 +68,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const signIn = async (email: string, password: string) => {
     try {
-      await auth().signInWithEmailAndPassword(email, password);
+      await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
       console.error('Sign in error:', error);
       throw error;
@@ -67,7 +77,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const signInAnonymously = async () => {
     try {
-      const userCredential = await auth().signInAnonymously();
+      const userCredential = await firebaseSignInAnonymously(auth);
       const anonymousName = `User${Math.floor(Math.random() * 10000)}`;
 
       // Create user document in Firestore
@@ -81,12 +91,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const signOut = async () => {
+  const signOutUser = async () => {
     try {
       if (user) {
         await updateUserStatus(user.uid, 'offline');
       }
-      await auth().signOut();
+      await firebaseSignOut(auth);
     } catch (error) {
       console.error('❌ Sign out error:', error);
       throw error;
@@ -94,7 +104,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signUp, signIn, signOut, signInAnonymously }}>
+    <AuthContext.Provider value={{ user, loading, signUp, signIn, signOut: signOutUser, signInAnonymously }}>
       {children}
     </AuthContext.Provider>
   );
