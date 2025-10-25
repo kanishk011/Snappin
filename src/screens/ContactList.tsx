@@ -1,17 +1,50 @@
-import React from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, ActivityIndicator } from 'react-native';
 import { Contact } from '../types';
+import { subscribeToUsers } from '../services/firestoreService';
+import { useAuth } from '../contexts/AuthContext';
+import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/types';
 
-interface ContactListProps {
-  contacts: Contact[];
-  onSelectContact: (contact: Contact) => void;
-}
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const ContactList: React.FC<ContactListProps> = ({ contacts, onSelectContact }) => {
+const ContactList: React.FC = () => {
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const navigation = useNavigation<NavigationProp>();
+
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = subscribeToUsers(user.uid, (users) => {
+      setContacts(users);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
+  const handleSelectContact = (contact: Contact) => {
+    navigation.navigate('Chat', {
+      chatType: 'personal',
+      contact: contact,
+    });
+  };
+
   const renderItem = ({ item }: { item: Contact }) => (
     <TouchableOpacity
       style={styles.contactItem}
-      onPress={() => onSelectContact(item)}
+      onPress={() => handleSelectContact(item)}
     >
       <View style={styles.avatarContainer}>
         {item.avatar ? (
@@ -40,18 +73,30 @@ const ContactList: React.FC<ContactListProps> = ({ contacts, onSelectContact }) 
   );
 
   return (
-    <FlatList
-      data={contacts}
-      renderItem={renderItem}
-      keyExtractor={item => item._id.toString()}
-      style={styles.list}
-    />
+    <View style={styles.container}>
+      <FlatList
+        data={contacts}
+        renderItem={renderItem}
+        keyExtractor={item => item._id.toString()}
+        style={styles.list}
+        contentContainerStyle={contacts.length === 0 ? styles.emptyList : undefined}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No contacts yet</Text>
+            <Text style={styles.emptySubtext}>Start chatting with someone!</Text>
+          </View>
+        }
+      />
+    </View>
   );
 };
 
-const formatTime = (date: Date): string => {
+const formatTime = (date: Date | FirebaseFirestoreTypes.Timestamp): string => {
+  const dateObj = date instanceof Date ? date : date?.toDate();
+  if (!dateObj) return '';
+
   const now = new Date();
-  const diff = now.getTime() - date.getTime();
+  const diff = now.getTime() - dateObj.getTime();
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
@@ -66,15 +111,44 @@ const formatTime = (date: Date): string => {
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F2F2F7',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F2F2F7',
+  },
   list: {
     flex: 1,
-    backgroundColor: '#fff',
+  },
+  emptyList: {
+    flexGrow: 1,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#8E8E93',
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#C7C7CC',
   },
   contactItem: {
     flexDirection: 'row',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#E5E5EA',
     alignItems: 'center',
   },
   avatarContainer: {

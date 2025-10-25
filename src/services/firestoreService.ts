@@ -1,0 +1,300 @@
+import { firestore, getCurrentUserId, USERS_COLLECTION, CHATS_COLLECTION, MESSAGES_COLLECTION, GROUPS_COLLECTION } from '../config/firebase';
+import { IMessage } from 'react-native-gifted-chat';
+import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
+
+// User Management
+export const createOrUpdateUser = async (userId: string, userData: {
+  name: string;
+  email?: string;
+  avatar?: string;
+  status?: 'online' | 'offline';
+}) => {
+  try {
+    console.log('📝 Creating/Updating user document:', userId, userData);
+    console.log('📁 Collection path:', USERS_COLLECTION);
+    console.log('🔑 Document ID:', userId);
+
+    const docData = {
+      _id: userId,
+      ...userData,
+      updatedAt: firestore.FieldValue.serverTimestamp(),
+      createdAt: firestore.FieldValue.serverTimestamp(),
+    };
+
+    console.log('📄 Document data:', docData);
+
+    await firestore()
+      .collection(USERS_COLLECTION)
+      .doc(userId)
+      .set(docData, { merge: true });
+
+    console.log('✅ User document created successfully!');
+    console.log('🌐 Check Firebase Console at: https://console.firebase.google.com/');
+  } catch (error) {
+    console.error('❌ Error creating/updating user:', error);
+    console.error('❌ Error details:', JSON.stringify(error, null, 2));
+    throw error;
+  }
+};
+
+export const updateUserStatus = async (userId: string, status: 'online' | 'offline') => {
+  try {
+    console.log('📊 Updating user status:', userId, status);
+    console.log('📁 Collection path:', USERS_COLLECTION);
+
+    // Use set with merge instead of update to create if doesn't exist
+    await firestore()
+      .collection(USERS_COLLECTION)
+      .doc(userId)
+      .set({
+        status,
+        lastSeen: firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+    console.log('✅ User status updated successfully!');
+    console.log('🌐 Document should now be visible in Firebase Console');
+  } catch (error) {
+    console.error('❌ Error updating user status:', error);
+    console.error('❌ Error details:', JSON.stringify(error, null, 2));
+  }
+};
+
+export const getUserById = async (userId: string) => {
+  try {
+    const userDoc = await firestore()
+      .collection(USERS_COLLECTION)
+      .doc(userId)
+      .get();
+    return userDoc.exists ? { _id: userDoc.id, ...userDoc.data() } : null;
+  } catch (error) {
+    console.error('Error getting user:', error);
+    return null;
+  }
+};
+
+// Chat Management
+export const getChatId = (userId1: string, userId2: string): string => {
+  return [userId1, userId2].sort().join('_');
+};
+
+export const createPersonalChat = async (userId1: string, userId2: string) => {
+  const chatId = getChatId(userId1, userId2);
+  try {
+    await firestore()
+      .collection(CHATS_COLLECTION)
+      .doc(chatId)
+      .set({
+        type: 'personal',
+        participants: [userId1, userId2],
+        createdAt: firestore.FieldValue.serverTimestamp(),
+        lastMessage: null,
+        lastMessageTime: null,
+      }, { merge: true });
+    return chatId;
+  } catch (error) {
+    console.error('Error creating personal chat:', error);
+    throw error;
+  }
+};
+
+// Group Management
+export const createGroup = async (groupData: {
+  name: string;
+  avatar?: string;
+  createdBy: string;
+  members: string[];
+}) => {
+  try {
+    const groupRef = await firestore()
+      .collection(GROUPS_COLLECTION)
+      .add({
+        ...groupData,
+        createdAt: firestore.FieldValue.serverTimestamp(),
+        lastMessage: null,
+        lastMessageTime: null,
+      });
+    return groupRef.id;
+  } catch (error) {
+    console.error('Error creating group:', error);
+    throw error;
+  }
+};
+
+export const addMemberToGroup = async (groupId: string, userId: string) => {
+  try {
+    await firestore()
+      .collection(GROUPS_COLLECTION)
+      .doc(groupId)
+      .update({
+        members: firestore.FieldValue.arrayUnion(userId),
+      });
+  } catch (error) {
+    console.error('Error adding member to group:', error);
+    throw error;
+  }
+};
+
+// Message Management
+export const sendMessage = async (
+  chatId: string,
+  message: IMessage,
+  isGroup: boolean = false
+) => {
+  try {
+    const collectionPath = isGroup
+      ? `${GROUPS_COLLECTION}/${chatId}/${MESSAGES_COLLECTION}`
+      : `${CHATS_COLLECTION}/${chatId}/${MESSAGES_COLLECTION}`;
+
+    await firestore()
+      .collection(collectionPath)
+      .add({
+        _id: message._id,
+        text: message.text,
+        createdAt: message.createdAt,
+        user: message.user,
+        image: message.image || null,
+        video: message.video || null,
+        audio: message.audio || null,
+      });
+
+    // Update last message in chat/group
+    const updatePath = isGroup
+      ? `${GROUPS_COLLECTION}/${chatId}`
+      : `${CHATS_COLLECTION}/${chatId}`;
+
+    await firestore()
+      .doc(updatePath)
+      .update({
+        lastMessage: message.text,
+        lastMessageTime: firestore.FieldValue.serverTimestamp(),
+      });
+  } catch (error) {
+    console.error('Error sending message:', error);
+    throw error;
+  }
+};
+
+export const subscribeToMessages = (
+  chatId: string,
+  isGroup: boolean,
+  callback: (messages: IMessage[]) => void
+): (() => void) => {
+  const collectionPath = isGroup
+    ? `${GROUPS_COLLECTION}/${chatId}/${MESSAGES_COLLECTION}`
+    : `${CHATS_COLLECTION}/${chatId}/${MESSAGES_COLLECTION}`;
+
+  const unsubscribe = firestore()
+    .collection(collectionPath)
+    .orderBy('createdAt', 'desc')
+    .onSnapshot(
+      (querySnapshot) => {
+        const messages: IMessage[] = [];
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          messages.push({
+            _id: data._id,
+            text: data.text,
+            createdAt: data.createdAt?.toDate() || new Date(),
+            user: data.user,
+            image: data.image,
+            video: data.video,
+            audio: data.audio,
+          });
+        });
+        callback(messages);
+      },
+      (error) => {
+        console.error('Error subscribing to messages:', error);
+      }
+    );
+
+  return unsubscribe;
+};
+
+// Get all chats for current user
+export const subscribeToUserChats = (
+  userId: string,
+  callback: (chats: any[]) => void
+): (() => void) => {
+  const unsubscribe = firestore()
+    .collection(CHATS_COLLECTION)
+    .where('participants', 'array-contains', userId)
+    .orderBy('lastMessageTime', 'desc')
+    .onSnapshot(
+      async (querySnapshot) => {
+        const chats: any[] = [];
+        for (const doc of querySnapshot.docs) {
+          const chatData = doc.data();
+          const otherUserId = chatData.participants.find((id: string) => id !== userId);
+          const otherUser = await getUserById(otherUserId);
+
+          chats.push({
+            _id: doc.id,
+            ...chatData,
+            otherUser,
+          });
+        }
+        callback(chats);
+      },
+      (error) => {
+        console.error('Error subscribing to chats:', error);
+      }
+    );
+
+  return unsubscribe;
+};
+
+// Get all groups for current user
+export const subscribeToUserGroups = (
+  userId: string,
+  callback: (groups: any[]) => void
+): (() => void) => {
+  const unsubscribe = firestore()
+    .collection(GROUPS_COLLECTION)
+    .where('members', 'array-contains', userId)
+    .orderBy('lastMessageTime', 'desc')
+    .onSnapshot(
+      (querySnapshot) => {
+        const groups: any[] = [];
+        querySnapshot.forEach((doc) => {
+          groups.push({
+            _id: doc.id,
+            ...doc.data(),
+          });
+        });
+        callback(groups);
+      },
+      (error) => {
+        console.error('Error subscribing to groups:', error);
+      }
+    );
+
+  return unsubscribe;
+};
+
+// Get all users (for contact list)
+export const subscribeToUsers = (
+  currentUserId: string,
+  callback: (users: any[]) => void
+): (() => void) => {
+  const unsubscribe = firestore()
+    .collection(USERS_COLLECTION)
+    .where('_id', '!=', currentUserId)
+    .onSnapshot(
+      (querySnapshot) => {
+        const users: any[] = [];
+        querySnapshot.forEach((doc) => {
+          users.push({
+            _id: doc.id,
+            ...doc.data(),
+          });
+        });
+        callback(users);
+      },
+      (error) => {
+        console.error('Error subscribing to users:', error);
+      }
+    );
+
+  return unsubscribe;
+};

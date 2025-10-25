@@ -1,40 +1,78 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { GiftedChat, IMessage } from 'react-native-gifted-chat';
 import { Contact, Group } from '../types';
+import { subscribeToMessages, sendMessage, getChatId, createPersonalChat } from '../services/firestoreService';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { RootStackParamList } from '../navigation/types';
 
-interface ChatScreenProps {
-  chatType: 'personal' | 'group';
-  contact?: Contact;
-  group?: Group;
-  initialMessages: IMessage[];
-  onBack: () => void;
-  onSendMessage: (newMessages: IMessage[]) => void;
-}
+type ChatScreenRouteProp = RouteProp<RootStackParamList, 'Chat'>;
 
-const ChatScreen: React.FC<ChatScreenProps> = ({
-  chatType,
-  contact,
-  group,
-  initialMessages,
-  onBack,
-  onSendMessage,
-}) => {
-  const [messages, setMessages] = useState<IMessage[]>(initialMessages);
+const ChatScreen: React.FC = () => {
+  const route = useRoute<ChatScreenRouteProp>();
+  const navigation = useNavigation();
+  const { chatType, contact, group } = route.params;
+  const [messages, setMessages] = useState<IMessage[]>([]);
+  const { user } = useAuth();
 
-  const onSend = useCallback((newMessages: IMessage[] = []) => {
-    setMessages(prevMessages => GiftedChat.append(prevMessages, newMessages));
-    onSendMessage(newMessages);
-  }, [onSendMessage]);
+  useEffect(() => {
+    if (!user) return;
+
+    let chatId = '';
+    let isGroup = false;
+
+    // Get chat ID
+    if (chatType === 'personal' && contact) {
+      chatId = getChatId(user.uid, contact._id);
+      // Create chat if it doesn't exist
+      createPersonalChat(user.uid, contact._id);
+    } else if (chatType === 'group' && group) {
+      chatId = group._id;
+      isGroup = true;
+    }
+
+    if (!chatId) return;
+
+    // Subscribe to messages
+    const unsubscribe = subscribeToMessages(chatId, isGroup, (fetchedMessages) => {
+      setMessages(fetchedMessages);
+    });
+
+    return () => unsubscribe();
+  }, [user, contact, group, chatType]);
+
+  const onSend = useCallback(async (newMessages: IMessage[] = []) => {
+    if (!user) return;
+
+    let chatId = '';
+    let isGroup = false;
+
+    if (chatType === 'personal' && contact) {
+      chatId = getChatId(user.uid, contact._id);
+    } else if (chatType === 'group' && group) {
+      chatId = group._id;
+      isGroup = true;
+    }
+
+    if (!chatId) return;
+
+    try {
+      for (const message of newMessages) {
+        await sendMessage(chatId, message, isGroup);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
+  }, [user, contact, group, chatType]);
 
   const chatName = chatType === 'personal' ? contact?.name : group?.name;
-  const avatar = chatType === 'personal' ? contact?.avatar : group?.avatar;
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
         <View style={styles.headerInfo}>
@@ -53,8 +91,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
         messages={messages}
         onSend={onSend}
         user={{
-          _id: 1,
-          name: 'You',
+          _id: user?.uid || '1',
+          name: user?.displayName || 'You',
         }}
         placeholder="Type a message..."
         alwaysShowSend

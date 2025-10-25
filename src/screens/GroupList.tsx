@@ -1,17 +1,53 @@
-import React from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, ActivityIndicator } from 'react-native';
 import { Group } from '../types';
+import { subscribeToUserGroups } from '../services/firestoreService';
+import { useAuth } from '../contexts/AuthContext';
+import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/types';
 
-interface GroupListProps {
-  groups: Group[];
-  onSelectGroup: (group: Group) => void;
-}
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const GroupList: React.FC<GroupListProps> = ({ groups, onSelectGroup }) => {
+const GroupList: React.FC = () => {
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const navigation = useNavigation<NavigationProp>();
+
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = subscribeToUserGroups(user.uid, (userGroups) => {
+      setGroups(userGroups);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  console.log("groupsgroups", groups);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
+
+  const handleSelectGroup = (group: Group) => {
+    navigation.navigate('Chat', {
+      chatType: 'group',
+      group: group,
+    });
+  };
+
   const renderItem = ({ item }: { item: Group }) => (
     <TouchableOpacity
       style={styles.groupItem}
-      onPress={() => onSelectGroup(item)}
+      onPress={() => handleSelectGroup(item)}
     >
       <View style={styles.avatarContainer}>
         {item.avatar ? (
@@ -42,18 +78,30 @@ const GroupList: React.FC<GroupListProps> = ({ groups, onSelectGroup }) => {
   );
 
   return (
-    <FlatList
-      data={groups}
-      renderItem={renderItem}
-      keyExtractor={item => item._id.toString()}
-      style={styles.list}
-    />
+    <View style={styles.container}>
+      <FlatList
+        data={groups}
+        renderItem={renderItem}
+        keyExtractor={item => item._id.toString()}
+        style={styles.list}
+        contentContainerStyle={groups.length === 0 ? styles.emptyList : undefined}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No groups yet</Text>
+            <Text style={styles.emptySubtext}>Create or join a group to start chatting!</Text>
+          </View>
+        }
+      />
+    </View>
   );
 };
 
-const formatTime = (date: Date): string => {
+const formatTime = (date: Date | FirebaseFirestoreTypes.Timestamp): string => {
+  const dateObj = date instanceof Date ? date : date?.toDate();
+  if (!dateObj) return '';
+
   const now = new Date();
-  const diff = now.getTime() - date.getTime();
+  const diff = now.getTime() - dateObj.getTime();
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
@@ -68,15 +116,44 @@ const formatTime = (date: Date): string => {
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F2F2F7',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F2F2F7',
+  },
   list: {
     flex: 1,
-    backgroundColor: '#fff',
+  },
+  emptyList: {
+    flexGrow: 1,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#8E8E93',
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#C7C7CC',
   },
   groupItem: {
     flexDirection: 'row',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#E5E5EA',
     alignItems: 'center',
   },
   avatarContainer: {
@@ -114,15 +191,19 @@ const styles = StyleSheet.create({
   },
   memberCount: {
     fontSize: 12,
-    color: '#999',
+    color: '#8E8E93',
+    backgroundColor: '#F2F2F7',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
   },
   lastMessage: {
     fontSize: 14,
-    color: '#666',
+    color: '#8E8E93',
   },
   timeText: {
     fontSize: 12,
-    color: '#999',
+    color: '#C7C7CC',
   },
 });
 

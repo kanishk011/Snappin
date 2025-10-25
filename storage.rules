@@ -1,0 +1,68 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check file size (max 5MB for images, 50MB for videos)
+    function isValidImageSize() {
+      return request.resource.size < 5 * 1024 * 1024;
+    }
+
+    function isValidVideoSize() {
+      return request.resource.size < 50 * 1024 * 1024;
+    }
+
+    // Helper function to check if file is an image
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    // Helper function to check if file is a video
+    function isVideo() {
+      return request.resource.contentType.matches('video/.*');
+    }
+
+    // User profile pictures
+    match /users/{userId}/profile/{fileName} {
+      // Anyone can read profile pictures
+      allow read: if true;
+
+      // Users can upload their own profile picture
+      allow write: if isAuthenticated() &&
+                      request.auth.uid == userId &&
+                      isImage() &&
+                      isValidImageSize();
+    }
+
+    // Chat media files (images, videos, audio)
+    match /chats/{chatId}/media/{fileName} {
+      // Authenticated users can read chat media
+      allow read: if isAuthenticated();
+
+      // Authenticated users can upload media files
+      allow write: if isAuthenticated() &&
+                      ((isImage() && isValidImageSize()) ||
+                       (isVideo() && isValidVideoSize()));
+    }
+
+    // Group media files
+    match /groups/{groupId}/media/{fileName} {
+      // Authenticated users can read group media
+      allow read: if isAuthenticated();
+
+      // Authenticated users can upload media files
+      allow write: if isAuthenticated() &&
+                      ((isImage() && isValidImageSize()) ||
+                       (isVideo() && isValidVideoSize()));
+    }
+
+    // Default: deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
