@@ -4,6 +4,8 @@ import { RootStackParamList } from './types';
 import AuthScreen from '../screens/AuthScreen';
 import MainTabNavigator from './MainTabNavigator';
 import ChatScreen from '../screens/ChatScreen';
+import NewChatScreen from '../screens/NewChatScreen';
+import NewGroupScreen from '../screens/NewGroupScreen';
 import { useAuth } from '../contexts/AuthContext';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 
@@ -37,6 +39,38 @@ const RootNavigator: React.FC = () => {
             component={ChatScreen}
             options={{
               headerShown: false,
+              animation: 'slide_from_right',
+            }}
+          />
+          <Stack.Screen
+            name="NewChat"
+            component={NewChatScreen}
+            options={{
+              headerShown: true,
+              title: 'New Chat',
+              headerStyle: {
+                backgroundColor: '#007AFF',
+              },
+              headerTintColor: '#fff',
+              headerTitleStyle: {
+                fontWeight: '600',
+              },
+              animation: 'slide_from_right',
+            }}
+          />
+          <Stack.Screen
+            name="NewGroup"
+            component={NewGroupScreen}
+            options={{
+              headerShown: true,
+              title: 'New Group',
+              headerStyle: {
+                backgroundColor: '#FF9500',
+              },
+              headerTintColor: '#fff',
+              headerTitleStyle: {
+                fontWeight: '600',
+              },
               animation: 'slide_from_right',
             }}
           />

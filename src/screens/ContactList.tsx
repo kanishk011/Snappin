@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, ActivityIndicator } from 'react-native';
 import { Contact } from '../types';
-import { subscribeToUsers } from '../services/firestoreService';
+import { subscribeToUserChats, getUserById } from '../services/firestoreService';
 import { useAuth } from '../contexts/AuthContext';
 import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 import { useNavigation } from '@react-navigation/native';
@@ -11,7 +11,7 @@ import { RootStackParamList } from '../navigation/types';
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const ContactList: React.FC = () => {
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [chats, setChats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const navigation = useNavigation<NavigationProp>();
@@ -19,8 +19,8 @@ const ContactList: React.FC = () => {
   useEffect(() => {
     if (!user) return;
 
-    const unsubscribe = subscribeToUsers(user.uid, (users) => {
-      setContacts(users);
+    const unsubscribe = subscribeToUserChats(user.uid, (userChats) => {
+      setChats(userChats);
       setLoading(false);
     });
 
@@ -34,59 +34,87 @@ const ContactList: React.FC = () => {
       </View>
     );
   }
-  const handleSelectContact = (contact: Contact) => {
+
+  const handleSelectChat = (chat: any) => {
     navigation.navigate('Chat', {
       chatType: 'personal',
-      contact: contact,
+      contact: chat.otherUser,
     });
   };
 
-  const renderItem = ({ item }: { item: Contact }) => (
-    <TouchableOpacity
-      style={styles.contactItem}
-      onPress={() => handleSelectContact(item)}
-    >
-      <View style={styles.avatarContainer}>
-        {item.avatar ? (
-          <Image source={{ uri: item.avatar }} style={styles.avatar} />
-        ) : (
-          <View style={[styles.avatar, styles.defaultAvatar]}>
-            <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
-          </View>
-        )}
-        {item.status === 'online' && <View style={styles.onlineIndicator} />}
-      </View>
-      <View style={styles.contactInfo}>
-        <Text style={styles.contactName}>{item.name}</Text>
-        {item.lastMessage && (
-          <Text style={styles.lastMessage} numberOfLines={1}>
-            {item.lastMessage}
+  const handleNewChat = () => {
+    navigation.navigate('NewChat');
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
+  const renderItem = ({ item }: { item: any }) => {
+    const contact = item.otherUser;
+    if (!contact) return null;
+
+    return (
+      <TouchableOpacity
+        style={styles.contactItem}
+        onPress={() => handleSelectChat(item)}
+      >
+        <View style={styles.avatarContainer}>
+          {contact.avatar ? (
+            <Image source={{ uri: contact.avatar }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.defaultAvatar]}>
+              <Text style={styles.avatarText}>
+                {getInitials(contact.name || 'U')}
+              </Text>
+            </View>
+          )}
+          {contact.status === 'online' && <View style={styles.onlineIndicator} />}
+        </View>
+        <View style={styles.contactInfo}>
+          <Text style={styles.contactName}>{contact.name || 'Unknown User'}</Text>
+          {item.lastMessage && (
+            <Text style={styles.lastMessage} numberOfLines={1}>
+              {item.lastMessage}
+            </Text>
+          )}
+        </View>
+        {item.lastMessageTime && (
+          <Text style={styles.timeText}>
+            {formatTime(item.lastMessageTime)}
           </Text>
         )}
-      </View>
-      {item.lastMessageTime && (
-        <Text style={styles.timeText}>
-          {formatTime(item.lastMessageTime)}
-        </Text>
-      )}
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.container}>
       <FlatList
-        data={contacts}
+        data={chats}
         renderItem={renderItem}
-        keyExtractor={item => item._id.toString()}
+        keyExtractor={(item) => item._id.toString()}
         style={styles.list}
-        contentContainerStyle={contacts.length === 0 ? styles.emptyList : undefined}
+        contentContainerStyle={chats.length === 0 ? styles.emptyList : undefined}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No contacts yet</Text>
-            <Text style={styles.emptySubtext}>Start chatting with someone!</Text>
+            <Text style={styles.emptyText}>No chats yet</Text>
+            <Text style={styles.emptySubtext}>Tap the + button to start a new chat</Text>
           </View>
         }
       />
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={handleNewChat}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.fabIcon}>+</Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -197,6 +225,27 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 12,
     color: '#999',
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  fabIcon: {
+    fontSize: 32,
+    color: '#fff',
+    fontWeight: '300',
   },
 });
 

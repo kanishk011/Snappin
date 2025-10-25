@@ -9,6 +9,8 @@ export type RootStackParamList = {
     contact?: Contact;
     group?: Group;
   };
+  NewChat: undefined;
+  NewGroup: undefined;
 };
 
 export type MainTabParamList = {

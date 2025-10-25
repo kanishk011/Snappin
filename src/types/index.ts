@@ -25,7 +25,7 @@ export interface Group {
   createdBy: string;
   lastMessage?: string;
   lastMessageTime?: Date | FirebaseFirestoreTypes.Timestamp;
-  createdAt?: FirebaseFirestoreTypes.Timestamp;
+  createdAt?: Date | FirebaseFirestoreTypes.Timestamp;
 }
 
 export interface Chat {

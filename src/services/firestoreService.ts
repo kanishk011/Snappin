@@ -268,17 +268,19 @@ export const subscribeToUsers = (
   callback: (users: any[]) => void
 ): (() => void) => {
   const usersRef = collection(db, USERS_COLLECTION);
-  const q = query(usersRef, where('_id', '!=', currentUserId));
 
   const unsubscribe = onSnapshot(
-    q,
+    usersRef,
     (querySnapshot) => {
       const users: any[] = [];
       querySnapshot.forEach((doc) => {
-        users.push({
-          _id: doc.id,
-          ...doc.data(),
-        });
+        // Filter out the current user on the client side
+        if (doc.id !== currentUserId) {
+          users.push({
+            _id: doc.id,
+            ...doc.data(),
+          });
+        }
       });
       callback(users);
     },

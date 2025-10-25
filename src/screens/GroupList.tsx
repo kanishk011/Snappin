@@ -42,6 +42,19 @@ const GroupList: React.FC = () => {
     });
   };
 
+  const handleNewGroup = () => {
+    navigation.navigate('NewGroup');
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
   const renderItem = ({ item }: { item: Group }) => (
     <TouchableOpacity
       style={styles.groupItem}
@@ -52,7 +65,9 @@ const GroupList: React.FC = () => {
           <Image source={{ uri: item.avatar }} style={styles.avatar} />
         ) : (
           <View style={[styles.avatar, styles.defaultAvatar]}>
-            <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
+            <Text style={styles.avatarText}>
+              {getInitials(item.name || 'G')}
+            </Text>
           </View>
         )}
       </View>
@@ -80,16 +95,23 @@ const GroupList: React.FC = () => {
       <FlatList
         data={groups}
         renderItem={renderItem}
-        keyExtractor={item => item._id.toString()}
+        keyExtractor={(item) => item._id.toString()}
         style={styles.list}
         contentContainerStyle={groups.length === 0 ? styles.emptyList : undefined}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No groups yet</Text>
-            <Text style={styles.emptySubtext}>Create or join a group to start chatting!</Text>
+            <Text style={styles.emptySubtext}>Tap the + button to create a group</Text>
           </View>
         }
       />
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={handleNewGroup}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.fabIcon}>+</Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -202,6 +224,27 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 12,
     color: '#C7C7CC',
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FF9500',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  fabIcon: {
+    fontSize: 32,
+    color: '#fff',
+    fontWeight: '300',
   },
 });
 
