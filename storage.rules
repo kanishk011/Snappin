@@ -7,13 +7,17 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    // Helper function to check file size (max 5MB for images, 50MB for videos)
+    // Helper function to check file size (max 5MB for images, 50MB for videos, 10MB for documents)
     function isValidImageSize() {
       return request.resource.size < 5 * 1024 * 1024;
     }
 
     function isValidVideoSize() {
       return request.resource.size < 50 * 1024 * 1024;
+    }
+
+    function isValidDocumentSize() {
+      return request.resource.size < 10 * 1024 * 1024;
     }
 
     // Helper function to check if file is an image
@@ -24,6 +28,15 @@ service firebase.storage {
     // Helper function to check if file is a video
     function isVideo() {
       return request.resource.contentType.matches('video/.*');
+    }
+
+    // Helper function to check if file is a document
+    function isDocument() {
+      return request.resource.contentType.matches('application/.*') ||
+             request.resource.contentType.matches('text/.*') ||
+             request.resource.contentType == 'application/pdf' ||
+             request.resource.contentType == 'application/msword' ||
+             request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     }
 
     // User profile pictures
@@ -38,7 +51,7 @@ service firebase.storage {
                       isValidImageSize();
     }
 
-    // Chat media files (images, videos, audio)
+    // Chat media files (images, videos, documents)
     match /chats/{chatId}/media/{fileName} {
       // Authenticated users can read chat media
       allow read: if isAuthenticated();
@@ -46,7 +59,8 @@ service firebase.storage {
       // Authenticated users can upload media files
       allow write: if isAuthenticated() &&
                       ((isImage() && isValidImageSize()) ||
-                       (isVideo() && isValidVideoSize()));
+                       (isVideo() && isValidVideoSize()) ||
+                       (isDocument() && isValidDocumentSize()));
     }
 
     // Group media files
@@ -57,7 +71,8 @@ service firebase.storage {
       // Authenticated users can upload media files
       allow write: if isAuthenticated() &&
                       ((isImage() && isValidImageSize()) ||
-                       (isVideo() && isValidVideoSize()));
+                       (isVideo() && isValidVideoSize()) ||
+                       (isDocument() && isValidDocumentSize()));
     }
 
     // Default: deny all other access

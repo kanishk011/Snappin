@@ -52,8 +52,13 @@ service cloud.firestore {
                          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants &&
                          request.resource.data.user._id == request.auth.uid;
 
-        // No one can update or delete messages
-        allow update, delete: if false;
+        // Users can delete their own messages
+        allow delete: if isAuthenticated() &&
+                         request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants &&
+                         request.auth.uid == resource.data.user._id;
+
+        // No one can update messages
+        allow update: if false;
       }
     }
 
@@ -87,8 +92,13 @@ service cloud.firestore {
                          request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members &&
                          request.resource.data.user._id == request.auth.uid;
 
-        // No one can update or delete messages
-        allow update, delete: if false;
+        // Users can delete their own messages
+        allow delete: if isAuthenticated() &&
+                         request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members &&
+                         request.auth.uid == resource.data.user._id;
+
+        // No one can update messages
+        allow update: if false;
       }
     }
   }

@@ -1,6 +1,19 @@
 import { IMessage } from 'react-native-gifted-chat';
 import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 
+// Extended message interface to support additional features
+export interface ExtendedMessage extends IMessage {
+  replyTo?: {
+    _id: string | number;
+    text: string;
+    user: {
+      _id: string | number;
+      name: string;
+    };
+  };
+  firestoreDocId?: string; // Firestore document ID for deletion
+}
+
 export interface User {
   _id: string;
   name: string;

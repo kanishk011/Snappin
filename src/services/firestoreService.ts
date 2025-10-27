@@ -1,18 +1,19 @@
-import { 
-  getFirestore, 
-  collection, 
-  doc, 
-  setDoc, 
-  getDoc, 
-  addDoc, 
-  updateDoc, 
-  onSnapshot, 
-  query, 
-  where, 
+import {
+  getFirestore,
+  collection,
+  doc,
+  setDoc,
+  getDoc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  onSnapshot,
+  query,
+  where,
   orderBy,
   serverTimestamp,
   arrayUnion,
-  Timestamp 
+  Timestamp
 } from '@react-native-firebase/firestore';
 import { IMessage } from 'react-native-gifted-chat';
 import { USERS_COLLECTION, CHATS_COLLECTION, MESSAGES_COLLECTION, GROUPS_COLLECTION } from '../config/firebase';
@@ -144,16 +145,40 @@ export const sendMessage = async (
       image: message.image || null,
       video: message.video || null,
       audio: message.audio || null,
+      // Reply-to message support
+      replyTo: message.replyTo || null,
     });
 
     // Update last message in chat/group
     const parentRef = doc(db, parentCollection, chatId);
+    const lastMessageText = message.text || (message.image ? '📷 Photo' : message.video ? '🎥 Video' : '📎 Attachment');
     await updateDoc(parentRef, {
-      lastMessage: message.text,
+      lastMessage: lastMessageText,
       lastMessageTime: serverTimestamp(),
     });
   } catch (error) {
     console.error('Error sending message:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete a message from a chat or group
+ * @param chatId - Chat or group ID
+ * @param messageId - Firestore document ID of the message
+ * @param isGroup - Whether this is a group chat
+ */
+export const deleteMessage = async (
+  chatId: string,
+  messageId: string,
+  isGroup: boolean = false
+): Promise<void> => {
+  try {
+    const parentCollection = isGroup ? GROUPS_COLLECTION : CHATS_COLLECTION;
+    const messageRef = doc(db, parentCollection, chatId, MESSAGES_COLLECTION, messageId);
+    await deleteDoc(messageRef);
+  } catch (error) {
+    console.error('Error deleting message:', error);
     throw error;
   }
 };
@@ -171,8 +196,8 @@ export const subscribeToMessages = (
     q,
     (querySnapshot) => {
       const messages: IMessage[] = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
+      querySnapshot.forEach((docSnapshot) => {
+        const data = docSnapshot.data();
         messages.push({
           _id: data._id,
           text: data.text,
@@ -181,7 +206,10 @@ export const subscribeToMessages = (
           image: data.image,
           video: data.video,
           audio: data.audio,
-        });
+          replyTo: data.replyTo || undefined,
+          // Store Firestore document ID for deletion
+          firestoreDocId: docSnapshot.id,
+        } as any);
       });
       callback(messages);
     },
