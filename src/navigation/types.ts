@@ -14,6 +14,12 @@ export type RootStackParamList = {
 };
 
 export type MainTabParamList = {
-  Personal: undefined;
-  Groups: undefined;
+  Chats: undefined;
+  Status: undefined;
+  Settings: undefined;
+};
+
+export type ChatTabParamList = {
+  PersonalChats: undefined;
+  GroupChats: undefined;
 };
