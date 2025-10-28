@@ -69,7 +69,7 @@ const MainTabNavigator: React.FC = () => {
             ),
           }}
         />
-        {/* <Tab.Screen
+        <Tab.Screen
           name="Status"
           component={StatusScreen}
           options={{
@@ -104,7 +104,7 @@ const MainTabNavigator: React.FC = () => {
               </View>
             ),
           }}
-        /> */}
+        />
       </Tab.Navigator>
     </View>
   );
