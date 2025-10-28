@@ -10,6 +10,7 @@ import {
   Platform,
   Dimensions,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import Animated, {
@@ -22,6 +23,8 @@ import Animated, {
   withSequence,
   Easing,
 } from 'react-native-reanimated';
+import Ionicons from '@react-native-vector-icons/ionicons';
+import { COLORS, SIZES } from '../config/theme';
 
 const { width, height } = Dimensions.get('window');
 
@@ -110,7 +113,7 @@ const AuthScreen: React.FC = () => {
 
   return (
     <>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primaryDark} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
@@ -126,14 +129,14 @@ const AuthScreen: React.FC = () => {
 
         {/* Content */}
         <View style={styles.content}>
-          <Animated.View 
+          <Animated.View
             entering={FadeInUp.delay(200).duration(1000).springify()}
             style={styles.header}
           >
             <View style={styles.logoContainer}>
               <View style={styles.logoCircle}>
                 <View style={styles.logoInner}>
-                  <Text style={styles.logoText}>S</Text>
+                  <Ionicons name="chatbubbles" size={42} color={COLORS.white} />
                 </View>
               </View>
             </View>
@@ -143,45 +146,61 @@ const AuthScreen: React.FC = () => {
             </Text>
           </Animated.View>
 
-          <Animated.View 
+          <Animated.View
             entering={FadeInDown.delay(400).duration(1000).springify()}
             style={styles.formContainer}
           >
             {isSignUp && (
               <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Name</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your name"
-                  placeholderTextColor="#94A3B8"
-                  value={name}
-                  onChangeText={setName}
-                  autoCapitalize="words"
-                />
+                <View style={styles.inputLabelContainer}>
+                  <Ionicons name="person-outline" size={16} color={COLORS.white} />
+                  <Text style={styles.inputLabel}>Name</Text>
+                </View>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="person" size={20} color={COLORS.textLight} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your name"
+                    placeholderTextColor={COLORS.textLight}
+                    value={name}
+                    onChangeText={setName}
+                    autoCapitalize="words"
+                  />
+                </View>
               </View>
             )}
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Email</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                value={email}
-                onChangeText={setEmail}
-                placeholderTextColor="#94A3B8"
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
+              <View style={styles.inputLabelContainer}>
+                <Ionicons name="mail-outline" size={16} color={COLORS.white} />
+                <Text style={styles.inputLabel}>Email</Text>
+              </View>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="mail" size={20} color={COLORS.textLight} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your email"
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholderTextColor={COLORS.textLight}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Password</Text>
-              <View style={styles.passwordContainer}>
+              <View style={styles.inputLabelContainer}>
+                <Ionicons name="lock-closed-outline" size={16} color={COLORS.white} />
+                <Text style={styles.inputLabel}>Password</Text>
+              </View>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="lock-closed" size={20} color={COLORS.textLight} style={styles.inputIcon} />
                 <TextInput
                   style={styles.passwordInput}
                   placeholder="Enter your password"
                   value={password}
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={COLORS.textLight}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                 />
@@ -189,15 +208,11 @@ const AuthScreen: React.FC = () => {
                   onPress={() => setShowPassword(!showPassword)}
                   style={styles.eyeButton}
                 >
-                  <View style={styles.eyeIconContainer}>
-                    {showPassword ? (
-                      <View style={styles.eyeOpen}>
-                        <View style={styles.eyePupil} />
-                      </View>
-                    ) : (
-                      <View style={styles.eyeClosed} />
-                    )}
-                  </View>
+                  <Ionicons
+                    name={showPassword ? 'eye' : 'eye-off'}
+                    size={22}
+                    color={COLORS.textLight}
+                  />
                 </TouchableOpacity>
               </View>
             </View>
@@ -208,10 +223,28 @@ const AuthScreen: React.FC = () => {
               disabled={loading}
               activeOpacity={0.8}
             >
-              <Text style={styles.buttonText}>
-                {loading ? 'Loading...' : isSignUp ? 'Sign Up' : 'Sign In'}
-              </Text>
+              {loading ? (
+                <ActivityIndicator size="small" color={COLORS.white} />
+              ) : (
+                <>
+                  <Text style={styles.buttonText}>
+                    {isSignUp ? 'Sign Up' : 'Sign In'}
+                  </Text>
+                  <Ionicons
+                    name={isSignUp ? 'person-add' : 'log-in'}
+                    size={20}
+                    color={COLORS.white}
+                    style={styles.buttonIcon}
+                  />
+                </>
+              )}
             </TouchableOpacity>
+
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>OR</Text>
+              <View style={styles.dividerLine} />
+            </View>
 
             <TouchableOpacity
               style={styles.switchButton}
@@ -228,6 +261,17 @@ const AuthScreen: React.FC = () => {
               </Text>
             </TouchableOpacity>
           </Animated.View>
+
+          {/* Footer */}
+          <Animated.View
+            entering={FadeInUp.delay(600).duration(1000)}
+            style={styles.footer}
+          >
+            <View style={styles.footerRow}>
+              <Ionicons name="shield-checkmark" size={16} color={COLORS.primary} />
+              <Text style={styles.footerText}>End-to-end encrypted</Text>
+            </View>
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
     </>
@@ -237,14 +281,14 @@ const AuthScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0E27',
+    backgroundColor: '#0F1729',
   },
   backgroundGradient: {
     position: 'absolute',
     width: width,
     height: height,
     overflow: 'hidden',
-    backgroundColor: '#0A0E27',
+    backgroundColor: '#0F1729',
   },
   blob: {
     position: 'absolute',
@@ -253,7 +297,7 @@ const styles = StyleSheet.create({
   blob1: {
     width: 450,
     height: 450,
-    backgroundColor: '#6366F1',
+    backgroundColor: COLORS.primary,
     opacity: 0.15,
     top: -150,
     left: -100,
@@ -261,7 +305,7 @@ const styles = StyleSheet.create({
   blob2: {
     width: 380,
     height: 380,
-    backgroundColor: '#8B5CF6',
+    backgroundColor: COLORS.primaryLight,
     opacity: 0.12,
     bottom: -120,
     right: -50,
@@ -269,7 +313,7 @@ const styles = StyleSheet.create({
   blob3: {
     width: 320,
     height: 320,
-    backgroundColor: '#06B6D4',
+    backgroundColor: COLORS.accent,
     opacity: 0.1,
     top: height * 0.35,
     right: -120,
@@ -277,182 +321,187 @@ const styles = StyleSheet.create({
   blob4: {
     width: 280,
     height: 280,
-    backgroundColor: '#EC4899',
+    backgroundColor: COLORS.primaryDark,
     opacity: 0.08,
     top: height * 0.15,
     left: width * 0.6,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(10, 14, 39, 0.3)',
+    backgroundColor: 'rgba(15, 23, 41, 0.4)',
   },
   content: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: SIZES.xl,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 36,
+    marginBottom: SIZES['3xl'],
   },
   logoContainer: {
-    marginBottom: 20,
+    marginBottom: SIZES.lg,
   },
   logoCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: `${COLORS.primary}20`,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 4,
   },
   logoInner: {
-    width: 78,
-    height: 78,
-    borderRadius: 39,
-    backgroundColor: 'rgba(99, 102, 241, 0.25)',
-    borderWidth: 2,
-    borderColor: '#6366F1',
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: `${COLORS.primary}30`,
+    borderWidth: 3,
+    borderColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#6366F1',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.6,
     shadowRadius: 20,
     elevation: 15,
   },
-  logoText: {
-    fontSize: 38,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
   title: {
-    fontSize: 44,
+    fontSize: 48,
     fontWeight: '900',
-    color: '#FFFFFF',
-    marginBottom: 6,
+    color: COLORS.white,
+    marginBottom: SIZES.sm,
     letterSpacing: 2,
   },
   subtitle: {
-    fontSize: 15,
-    color: '#94A3B8',
+    fontSize: SIZES.fontBase,
+    color: COLORS.textLight,
     fontWeight: '400',
     letterSpacing: 0.5,
   },
   formContainer: {
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-    borderRadius: 28,
-    padding: 28,
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    borderRadius: SIZES.radiusLg * 2,
+    padding: SIZES['2xl'],
     borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.2)',
-    shadowColor: '#6366F1',
+    borderColor: `${COLORS.primary}30`,
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
     shadowRadius: 20,
     elevation: 10,
   },
   inputContainer: {
-    marginBottom: 18,
+    marginBottom: SIZES.lg,
+  },
+  inputLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SIZES.sm,
+    marginLeft: SIZES.xs,
   },
   inputLabel: {
-    color: '#E2E8F0',
-    fontSize: 13,
+    color: COLORS.white,
+    fontSize: SIZES.fontSm,
     fontWeight: '700',
-    marginBottom: 8,
-    marginLeft: 4,
+    marginLeft: SIZES.sm,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
-  input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 14,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.2)',
-  },
-  passwordContainer: {
+  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 14,
+    borderRadius: SIZES.radiusMd,
     borderWidth: 1,
     borderColor: 'rgba(148, 163, 184, 0.2)',
+    paddingHorizontal: SIZES.base,
+  },
+  inputIcon: {
+    marginRight: SIZES.md,
+  },
+  input: {
+    flex: 1,
+    paddingVertical: SIZES.base,
+    fontSize: SIZES.fontBase,
+    color: COLORS.white,
   },
   passwordInput: {
     flex: 1,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: '#FFFFFF',
+    paddingVertical: SIZES.base,
+    fontSize: SIZES.fontBase,
+    color: COLORS.white,
   },
   eyeButton: {
-    padding: 14,
-  },
-  eyeIconContainer: {
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  eyeOpen: {
-    width: 22,
-    height: 14,
-    borderWidth: 2,
-    borderColor: '#94A3B8',
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  eyePupil: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#94A3B8',
-  },
-  eyeClosed: {
-    width: 22,
-    height: 2,
-    backgroundColor: '#94A3B8',
-    borderRadius: 1,
+    padding: SIZES.md,
   },
   button: {
-    backgroundColor: '#6366F1',
-    paddingVertical: 16,
-    borderRadius: 14,
+    backgroundColor: COLORS.primary,
+    paddingVertical: SIZES.base + 2,
+    borderRadius: SIZES.radiusMd,
     alignItems: 'center',
-    marginTop: 8,
-    shadowColor: '#6366F1',
+    justifyContent: 'center',
+    marginTop: SIZES.md,
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.5,
     shadowRadius: 20,
     elevation: 10,
+    flexDirection: 'row',
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
-    color: '#FFFFFF',
-    fontSize: 17,
+    color: COLORS.white,
+    fontSize: SIZES.fontLg,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
-  switchButton: {
-    marginTop: 18,
+  buttonIcon: {
+    marginLeft: SIZES.sm,
+  },
+  divider: {
+    flexDirection: 'row',
     alignItems: 'center',
-    padding: 8,
+    marginVertical: SIZES.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(148, 163, 184, 0.2)',
+  },
+  dividerText: {
+    color: COLORS.textLight,
+    fontSize: SIZES.fontSm,
+    fontWeight: '600',
+    marginHorizontal: SIZES.base,
+  },
+  switchButton: {
+    alignItems: 'center',
+    padding: SIZES.md,
   },
   switchText: {
-    color: '#94A3B8',
-    fontSize: 14,
+    color: COLORS.textLight,
+    fontSize: SIZES.fontSm,
   },
   switchTextBold: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontWeight: '800',
-    fontSize: 14,
+    fontSize: SIZES.fontSm,
+  },
+  footer: {
+    marginTop: SIZES['2xl'],
+    alignItems: 'center',
+  },
+  footerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  footerText: {
+    color: COLORS.textLight,
+    fontSize: SIZES.fontSm,
+    marginLeft: SIZES.sm,
   },
 });
 
