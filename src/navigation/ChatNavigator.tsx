@@ -3,6 +3,7 @@ import { createMaterialTopTabNavigator } from '@react-navigation/material-top-ta
 import { View, StyleSheet } from 'react-native';
 import ContactList from '../screens/ContactList';
 import GroupList from '../screens/GroupList';
+import { COLORS, SIZES } from '../config/theme';
 
 const Tab = createMaterialTopTabNavigator();
 
@@ -11,15 +12,15 @@ const ChatNavigator: React.FC = () => {
     <View style={styles.container}>
       <Tab.Navigator
         screenOptions={{
-          tabBarActiveTintColor: '#25D366',
-          tabBarInactiveTintColor: '#8E8E93',
+          tabBarActiveTintColor: COLORS.primary,
+          tabBarInactiveTintColor: COLORS.textSecondary,
           tabBarLabelStyle: {
-            fontSize: 14,
+            fontSize: SIZES.fontSm,
             fontWeight: '600',
             textTransform: 'none',
           },
           tabBarStyle: {
-            backgroundColor: '#fff',
+            backgroundColor: COLORS.surface,
             elevation: 2,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 2 },
@@ -27,11 +28,11 @@ const ChatNavigator: React.FC = () => {
             shadowRadius: 3,
           },
           tabBarIndicatorStyle: {
-            backgroundColor: '#25D366',
+            backgroundColor: COLORS.primary,
             height: 3,
             borderRadius: 2,
           },
-          tabBarPressColor: '#25D36620',
+          tabBarPressColor: `${COLORS.primary}20`,
         }}
       >
         <Tab.Screen
@@ -56,7 +57,7 @@ const ChatNavigator: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.surface,
   },
 });
 

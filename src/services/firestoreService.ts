@@ -693,3 +693,317 @@ export const subscribeToUsers = (
 
   return unsubscribe;
 };
+
+// ============================================
+// STATUS MANAGEMENT
+// ============================================
+
+export interface StatusUpdate {
+  _id: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video' | 'text';
+  text?: string;
+  backgroundColor?: string;
+  createdAt: Date;
+  expiresAt: Date;
+  viewedBy: string[];
+}
+
+/**
+ * Create a status update
+ * @param userId - User ID
+ * @param statusData - Status data
+ * @returns Status ID
+ */
+export const createStatus = async (statusData: {
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video' | 'text';
+  text?: string;
+  backgroundColor?: string;
+}): Promise<string> => {
+  try {
+    const statusRef = collection(db, COLLECTION_NAMES.STATUS);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
+
+    const newStatus = {
+      userId: statusData.userId,
+      userName: statusData.userName,
+      userAvatar: statusData.userAvatar || null,
+      mediaUrl: statusData.mediaUrl || null,
+      mediaType: statusData.mediaType || 'text',
+      text: statusData.text || null,
+      backgroundColor: statusData.backgroundColor || '#25D366',
+      createdAt: serverTimestamp(),
+      expiresAt: Timestamp.fromDate(expiresAt),
+      viewedBy: [],
+    };
+
+    const docRef = await addDoc(statusRef, newStatus);
+    return docRef.id;
+  } catch (error) {
+    console.error('❌ Error creating status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Mark status as viewed
+ * @param statusId - Status ID
+ * @param userId - User ID who viewed
+ */
+export const markStatusAsViewed = async (statusId: string, userId: string) => {
+  try {
+    const statusRef = doc(db, COLLECTION_NAMES.STATUS, statusId);
+    await updateDoc(statusRef, {
+      viewedBy: arrayUnion(userId),
+    });
+  } catch (error) {
+    console.error('❌ Error marking status as viewed:', error);
+  }
+};
+
+/**
+ * Delete a status
+ * @param statusId - Status ID
+ */
+export const deleteStatus = async (statusId: string) => {
+  try {
+    const statusRef = doc(db, COLLECTION_NAMES.STATUS, statusId);
+    await deleteDoc(statusRef);
+  } catch (error) {
+    console.error('❌ Error deleting status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Subscribe to status updates
+ * @param userId - Current user ID
+ * @param callback - Callback function receiving statuses
+ * @returns Unsubscribe function
+ */
+export const subscribeToStatuses = (
+  userId: string,
+  callback: (statuses: { myStatuses: StatusUpdate[]; otherStatuses: StatusUpdate[] }) => void
+): (() => void) => {
+  const statusRef = collection(db, COLLECTION_NAMES.STATUS);
+  const now = new Date();
+  const q = query(statusRef, where('expiresAt', '>', Timestamp.fromDate(now)), orderBy('expiresAt'), orderBy('createdAt', 'desc'));
+
+  const unsubscribe = onSnapshot(
+    q,
+    (querySnapshot) => {
+      const myStatuses: StatusUpdate[] = [];
+      const otherStatuses: StatusUpdate[] = [];
+
+      querySnapshot.forEach((docSnapshot) => {
+        const data = docSnapshot.data();
+        const status: StatusUpdate = {
+          _id: docSnapshot.id,
+          userId: data.userId,
+          userName: data.userName,
+          userAvatar: data.userAvatar,
+          mediaUrl: data.mediaUrl,
+          mediaType: data.mediaType,
+          text: data.text,
+          backgroundColor: data.backgroundColor,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          expiresAt: data.expiresAt?.toDate() || new Date(),
+          viewedBy: data.viewedBy || [],
+        };
+
+        if (data.userId === userId) {
+          myStatuses.push(status);
+        } else {
+          otherStatuses.push(status);
+        }
+      });
+
+      callback({ myStatuses, otherStatuses });
+    },
+    (error) => {
+      console.error('❌ Error subscribing to statuses:', error);
+    }
+  );
+
+  return unsubscribe;
+};
+
+// ============================================
+// USER SETTINGS MANAGEMENT
+// ============================================
+
+export interface UserSettings {
+  privacy: {
+    lastSeen: 'everyone' | 'contacts' | 'nobody';
+    profilePhoto: 'everyone' | 'contacts' | 'nobody';
+    about: 'everyone' | 'contacts' | 'nobody';
+    readReceipts: boolean;
+    blockedUsers: string[];
+  };
+  notifications: {
+    enabled: boolean;
+    messageNotifications: boolean;
+    groupNotifications: boolean;
+    sound: boolean;
+    vibration: boolean;
+  };
+  storage: {
+    autoDownloadImages: boolean;
+    autoDownloadVideos: boolean;
+    autoDownloadDocuments: boolean;
+    networkUsage: 'wifi' | 'wifi-and-cellular';
+  };
+  chat: {
+    theme: 'light' | 'dark' | 'system';
+    wallpaper: string | null;
+    fontSize: 'small' | 'medium' | 'large';
+    enterToSend: boolean;
+  };
+}
+
+/**
+ * Get user settings
+ * @param userId - User ID
+ * @returns User settings or default settings
+ */
+export const getUserSettings = async (userId: string): Promise<UserSettings> => {
+  try {
+    const settingsRef = doc(db, COLLECTION_NAMES.USER_SETTINGS, userId);
+    const settingsDoc = await getDoc(settingsRef);
+
+    if (settingsDoc.exists()) {
+      return settingsDoc.data() as UserSettings;
+    }
+
+    // Return default settings
+    return getDefaultSettings();
+  } catch (error) {
+    console.error('❌ Error getting user settings:', error);
+    return getDefaultSettings();
+  }
+};
+
+/**
+ * Update user settings
+ * @param userId - User ID
+ * @param settings - Partial settings to update
+ */
+export const updateUserSettings = async (
+  userId: string,
+  settings: Partial<UserSettings>
+) => {
+  try {
+    const settingsRef = doc(db, COLLECTION_NAMES.USER_SETTINGS, userId);
+    await setDoc(settingsRef, settings, { merge: true });
+  } catch (error) {
+    console.error('❌ Error updating user settings:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get default user settings
+ */
+const getDefaultSettings = (): UserSettings => ({
+  privacy: {
+    lastSeen: 'everyone',
+    profilePhoto: 'everyone',
+    about: 'everyone',
+    readReceipts: true,
+    blockedUsers: [],
+  },
+  notifications: {
+    enabled: true,
+    messageNotifications: true,
+    groupNotifications: true,
+    sound: true,
+    vibration: true,
+  },
+  storage: {
+    autoDownloadImages: true,
+    autoDownloadVideos: false,
+    autoDownloadDocuments: false,
+    networkUsage: 'wifi-and-cellular',
+  },
+  chat: {
+    theme: 'light',
+    wallpaper: null,
+    fontSize: 'medium',
+    enterToSend: false,
+  },
+});
+
+/**
+ * Block a user
+ * @param userId - Current user ID
+ * @param blockedUserId - User ID to block
+ */
+export const blockUser = async (userId: string, blockedUserId: string) => {
+  try {
+    const settingsRef = doc(db, COLLECTION_NAMES.USER_SETTINGS, userId);
+    await updateDoc(settingsRef, {
+      'privacy.blockedUsers': arrayUnion(blockedUserId),
+    });
+  } catch (error) {
+    console.error('❌ Error blocking user:', error);
+    throw error;
+  }
+};
+
+/**
+ * Unblock a user
+ * @param userId - Current user ID
+ * @param blockedUserId - User ID to unblock
+ */
+export const unblockUser = async (userId: string, blockedUserId: string) => {
+  try {
+    const settingsRef = doc(db, COLLECTION_NAMES.USER_SETTINGS, userId);
+    const settingsDoc = await getDoc(settingsRef);
+
+    if (settingsDoc.exists()) {
+      const settings = settingsDoc.data() as UserSettings;
+      const blockedUsers = settings.privacy?.blockedUsers || [];
+      const updatedBlockedUsers = blockedUsers.filter(id => id !== blockedUserId);
+
+      await updateDoc(settingsRef, {
+        'privacy.blockedUsers': updatedBlockedUsers,
+      });
+    }
+  } catch (error) {
+    console.error('❌ Error unblocking user:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update user profile
+ * @param userId - User ID
+ * @param profileData - Profile data to update
+ */
+export const updateUserProfile = async (
+  userId: string,
+  profileData: {
+    name?: string;
+    about?: string;
+    avatar?: string;
+  }
+) => {
+  try {
+    const userRef = doc(db, COLLECTION_NAMES.USERS, userId);
+    await updateDoc(userRef, {
+      ...profileData,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error('❌ Error updating user profile:', error);
+    throw error;
+  }
+};

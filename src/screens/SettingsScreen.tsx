@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,18 @@ import {
   Image,
   Alert,
   Switch,
+  ActivityIndicator,
 } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons';
 import MaterialIcons from '@react-native-vector-icons/material-icons';
 import FontAwesome from '@react-native-vector-icons/fontawesome';
 import { useAuth } from '../contexts/AuthContext';
+import {
+  getUserSettings,
+  updateUserSettings,
+  UserSettings,
+} from '../services/firestoreService';
+import { COLORS, SIZES } from '../config/theme';
 
 interface SettingItem {
   id: string;
@@ -22,13 +29,54 @@ interface SettingItem {
   subtitle?: string;
   type: 'navigation' | 'toggle' | 'action';
   value?: boolean;
+  settingKey?: keyof UserSettings | string;
   onPress?: () => void;
 }
 
 const SettingsScreen: React.FC = () => {
   const { user, signOut } = useAuth();
-  const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
-  const [soundEnabled, setSoundEnabled] = React.useState(true);
+  const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState<UserSettings | null>(null);
+
+  useEffect(() => {
+    loadSettings();
+  }, [user]);
+
+  const loadSettings = async () => {
+    if (!user) return;
+
+    try {
+      const userSettings = await getUserSettings(user.uid);
+      setSettings(userSettings);
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleSetting = async (settingPath: string, value: boolean) => {
+    if (!user || !settings) return;
+
+    try {
+      const pathParts = settingPath.split('.');
+      const updatedSettings: any = { ...settings };
+
+      if (pathParts.length === 2) {
+        const [category, key] = pathParts;
+        if (!(category in updatedSettings)) {
+          updatedSettings[category] = {};
+        }
+        updatedSettings[category][key] = value;
+      }
+
+      await updateUserSettings(user.uid, updatedSettings);
+      setSettings(updatedSettings);
+    } catch (error) {
+      console.error('Error updating setting:', error);
+      Alert.alert('Error', 'Failed to update setting');
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -61,7 +109,7 @@ const SettingsScreen: React.FC = () => {
       iconName: 'shield-checkmark',
       iconType: 'ionicons',
       title: 'Privacy',
-      subtitle: 'Block contacts, disappearing messages',
+      subtitle: 'Control who can see your info',
       type: 'navigation',
       onPress: () => Alert.alert('Privacy', 'Privacy settings coming soon!'),
     },
@@ -70,7 +118,7 @@ const SettingsScreen: React.FC = () => {
       iconName: 'lock-closed',
       iconType: 'ionicons',
       title: 'Security',
-      subtitle: 'Two-step verification, change number',
+      subtitle: 'Two-step verification, security',
       type: 'navigation',
       onPress: () => Alert.alert('Security', 'Security settings coming soon!'),
     },
@@ -78,8 +126,8 @@ const SettingsScreen: React.FC = () => {
       id: '3',
       iconName: 'database',
       iconType: 'ionicons',
-      title: 'Storage and data',
-      subtitle: 'Network usage, auto-download',
+      title: 'Storage',
+      subtitle: `Auto-download: ${settings?.storage.autoDownloadImages ? 'Images' : 'Off'}`,
       type: 'navigation',
       onPress: () => Alert.alert('Storage', 'Storage settings coming soon!'),
     },
@@ -91,33 +139,102 @@ const SettingsScreen: React.FC = () => {
       iconName: 'notifications',
       iconType: 'ionicons',
       title: 'Notifications',
-      subtitle: notificationsEnabled ? 'On' : 'Off',
+      subtitle: settings?.notifications.enabled ? 'On' : 'Off',
       type: 'toggle',
-      value: notificationsEnabled,
+      value: settings?.notifications.enabled || false,
+      settingKey: 'notifications.enabled',
     },
     {
       id: '5',
-      iconName: 'volume-high',
+      iconName: 'chatbubbles',
       iconType: 'ionicons',
-      title: 'Sound',
-      subtitle: soundEnabled ? 'On' : 'Off',
+      title: 'Message Notifications',
+      subtitle: settings?.notifications.messageNotifications ? 'On' : 'Off',
       type: 'toggle',
-      value: soundEnabled,
+      value: settings?.notifications.messageNotifications || false,
+      settingKey: 'notifications.messageNotifications',
     },
     {
       id: '6',
-      iconName: 'chatbubbles',
+      iconName: 'people',
       iconType: 'ionicons',
-      title: 'Chats',
-      subtitle: 'Theme, wallpapers, chat history',
-      type: 'navigation',
-      onPress: () => Alert.alert('Chats', 'Chat settings coming soon!'),
+      title: 'Group Notifications',
+      subtitle: settings?.notifications.groupNotifications ? 'On' : 'Off',
+      type: 'toggle',
+      value: settings?.notifications.groupNotifications || false,
+      settingKey: 'notifications.groupNotifications',
+    },
+    {
+      id: '7',
+      iconName: 'volume-high',
+      iconType: 'ionicons',
+      title: 'Sound',
+      subtitle: settings?.notifications.sound ? 'On' : 'Off',
+      type: 'toggle',
+      value: settings?.notifications.sound || false,
+      settingKey: 'notifications.sound',
+    },
+    {
+      id: '8',
+      iconName: 'vibration',
+      iconType: 'material',
+      title: 'Vibration',
+      subtitle: settings?.notifications.vibration ? 'On' : 'Off',
+      type: 'toggle',
+      value: settings?.notifications.vibration || false,
+      settingKey: 'notifications.vibration',
+    },
+  ];
+
+  const storageSettings: SettingItem[] = [
+    {
+      id: '9',
+      iconName: 'image',
+      iconType: 'ionicons',
+      title: 'Auto-download Images',
+      subtitle: settings?.storage.autoDownloadImages ? 'On' : 'Off',
+      type: 'toggle',
+      value: settings?.storage.autoDownloadImages || false,
+      settingKey: 'storage.autoDownloadImages',
+    },
+    {
+      id: '10',
+      iconName: 'videocam',
+      iconType: 'ionicons',
+      title: 'Auto-download Videos',
+      subtitle: settings?.storage.autoDownloadVideos ? 'On' : 'Off',
+      type: 'toggle',
+      value: settings?.storage.autoDownloadVideos || false,
+      settingKey: 'storage.autoDownloadVideos',
+    },
+    {
+      id: '11',
+      iconName: 'document',
+      iconType: 'ionicons',
+      title: 'Auto-download Documents',
+      subtitle: settings?.storage.autoDownloadDocuments ? 'On' : 'Off',
+      type: 'toggle',
+      value: settings?.storage.autoDownloadDocuments || false,
+      settingKey: 'storage.autoDownloadDocuments',
+    },
+  ];
+
+  const chatSettings: SettingItem[] = [
+    {
+      id: '12',
+      iconName: 'eye',
+      iconType: 'ionicons',
+      title: 'Read Receipts',
+      subtitle: settings?.privacy.readReceipts ? 'On' : 'Off',
+      type: 'toggle',
+      value: settings?.privacy.readReceipts || false,
+      settingKey: 'privacy.readReceipts',
     },
   ];
 
   const supportSettings: SettingItem[] = [
     {
-      id: '7',
+      id: '13',
       iconName: 'help-circle',
       iconType: 'ionicons',
       title: 'Help',
@@ -126,7 +243,7 @@ const SettingsScreen: React.FC = () => {
       onPress: () => Alert.alert('Help', 'Help center coming soon!'),
     },
     {
-      id: '8',
+      id: '14',
       iconName: 'people',
       iconType: 'ionicons',
       title: 'Invite a friend',
@@ -145,7 +262,7 @@ const SettingsScreen: React.FC = () => {
   };
 
   const renderIcon = (iconName: string, iconType: string) => {
-    const iconProps = { size: 24, color: '#25D366', style: styles.settingIconStyle };
+    const iconProps = { size: 24, color: COLORS.primary, style: styles.settingIconStyle };
 
     switch (iconType) {
       case 'ionicons':
@@ -180,20 +297,26 @@ const SettingsScreen: React.FC = () => {
         <Switch
           value={item.value}
           onValueChange={(value) => {
-            if (item.id === '4') {
-              setNotificationsEnabled(value);
-            } else if (item.id === '5') {
-              setSoundEnabled(value);
+            if (item.settingKey) {
+              handleToggleSetting(item.settingKey, value);
             }
           }}
-          trackColor={{ false: '#E5E5EA', true: '#25D366' }}
+          trackColor={{ false: COLORS.borderLight, true: COLORS.primary }}
           thumbColor="#fff"
         />
       ) : (
-        <Text style={styles.chevron}>›</Text>
+        <Ionicons name="chevron-forward" size={20} color="#C7C7CC" />
       )}
     </TouchableOpacity>
   );
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
@@ -216,7 +339,7 @@ const SettingsScreen: React.FC = () => {
           </Text>
           <Text style={styles.profileStatus}>Hey there! I am using Snappin</Text>
         </View>
-        <Text style={styles.chevron}>›</Text>
+        <Ionicons name="chevron-forward" size={20} color="#C7C7CC" />
       </TouchableOpacity>
 
       {/* Account Settings */}
@@ -227,8 +350,20 @@ const SettingsScreen: React.FC = () => {
 
       {/* App Settings */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>App Settings</Text>
+        <Text style={styles.sectionTitle}>Notifications</Text>
         {appSettings.map(renderSettingItem)}
+      </View>
+
+      {/* Storage Settings */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Storage & Data</Text>
+        {storageSettings.map(renderSettingItem)}
+      </View>
+
+      {/* Chat Settings */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Chat Settings</Text>
+        {chatSettings.map(renderSettingItem)}
       </View>
 
       {/* Support */}
@@ -258,67 +393,73 @@ const SettingsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
   },
   profileSection: {
     flexDirection: 'row',
-    padding: 20,
-    backgroundColor: '#fff',
+    padding: SIZES.lg,
+    backgroundColor: COLORS.surface,
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: SIZES.xl,
   },
   profileAvatarContainer: {
     position: 'relative',
   },
   profileAvatar: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: SIZES.avatarLg,
+    height: SIZES.avatarLg,
+    borderRadius: SIZES.avatarLg / 2,
   },
   defaultAvatar: {
-    backgroundColor: '#007AFF',
+    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
-    color: '#fff',
-    fontSize: 28,
+    color: COLORS.white,
+    fontSize: SIZES.font3Xl,
     fontWeight: '600',
   },
   profileInfo: {
     flex: 1,
-    marginLeft: 16,
+    marginLeft: SIZES.base,
   },
   profileName: {
-    fontSize: 20,
+    fontSize: SIZES.fontXl,
     fontWeight: '700',
-    color: '#000',
+    color: COLORS.text,
     marginBottom: 4,
   },
   profileStatus: {
-    fontSize: 14,
-    color: '#8E8E93',
+    fontSize: SIZES.fontSm,
+    color: COLORS.textSecondary,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: SIZES.xl,
   },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: SIZES.fontSm,
     fontWeight: '600',
-    color: '#8E8E93',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    color: COLORS.textSecondary,
+    paddingHorizontal: SIZES.base,
+    paddingVertical: SIZES.sm,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   settingItem: {
     flexDirection: 'row',
-    padding: 16,
-    backgroundColor: '#fff',
+    padding: SIZES.base,
+    backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottomWidth: 0.5,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: COLORS.border,
   },
   settingLeft: {
     flexDirection: 'row',
@@ -326,7 +467,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   settingIconStyle: {
-    marginRight: 16,
+    marginRight: SIZES.base,
     width: 32,
     textAlign: 'center',
   },
@@ -334,29 +475,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   settingTitle: {
-    fontSize: 16,
+    fontSize: SIZES.fontMd,
     fontWeight: '500',
-    color: '#000',
+    color: COLORS.text,
     marginBottom: 2,
   },
   settingSubtitle: {
-    fontSize: 13,
-    color: '#8E8E93',
-  },
-  chevron: {
-    fontSize: 28,
-    color: '#C7C7CC',
-    fontWeight: '300',
+    fontSize: SIZES.fontSm,
+    color: COLORS.textSecondary,
   },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
-    backgroundColor: '#fff',
-    marginHorizontal: 16,
-    borderRadius: 12,
-    marginBottom: 24,
+    padding: SIZES.base,
+    backgroundColor: COLORS.surface,
+    marginHorizontal: SIZES.base,
+    borderRadius: SIZES.radiusMd,
+    marginBottom: SIZES.xl,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -364,20 +500,20 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   logoutIcon: {
-    marginRight: 8,
+    marginRight: SIZES.sm,
   },
   logoutText: {
-    fontSize: 16,
+    fontSize: SIZES.fontMd,
     fontWeight: '600',
-    color: '#FF3B30',
+    color: COLORS.error,
   },
   appInfo: {
     alignItems: 'center',
-    paddingVertical: 32,
+    paddingVertical: SIZES['2xl'],
   },
   appInfoText: {
-    fontSize: 13,
-    color: '#8E8E93',
+    fontSize: SIZES.fontSm,
+    color: COLORS.textSecondary,
     marginBottom: 4,
   },
   appInfoRow: {
@@ -385,8 +521,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   appInfoSubtext: {
-    fontSize: 12,
-    color: '#C7C7CC',
+    fontSize: SIZES.fontXs,
+    color: COLORS.textLight,
   },
 });
 

@@ -7,6 +7,7 @@ import ChatNavigator from './ChatNavigator';
 import StatusScreen from '../screens/StatusScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import { MainTabParamList } from './types';
+import { COLORS, SIZES } from '../config/theme';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -16,12 +17,12 @@ const MainTabNavigator: React.FC = () => {
       <Tab.Navigator
         screenOptions={{
           headerShown: true,
-          tabBarActiveTintColor: '#25D366',
-          tabBarInactiveTintColor: '#8E8E93',
+          tabBarActiveTintColor: COLORS.primary,
+          tabBarInactiveTintColor: COLORS.textSecondary,
           tabBarStyle: {
-            backgroundColor: '#fff',
+            backgroundColor: COLORS.surface,
             borderTopWidth: 1,
-            borderTopColor: '#E5E5EA',
+            borderTopColor: COLORS.border,
             height: Platform.OS === 'ios' ? 88 : 60,
             paddingBottom: Platform.OS === 'ios' ? 24 : 8,
             paddingTop: 8,
@@ -32,20 +33,20 @@ const MainTabNavigator: React.FC = () => {
             shadowRadius: 4,
           },
           tabBarLabelStyle: {
-            fontSize: 12,
+            fontSize: SIZES.fontSm,
             fontWeight: '600',
           },
           headerStyle: {
-            backgroundColor: '#25D366',
+            backgroundColor: COLORS.primary,
             elevation: 4,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.15,
             shadowRadius: 3,
           },
-          headerTintColor: '#fff',
+          headerTintColor: COLORS.white,
           headerTitleStyle: {
-            fontSize: 20,
+            fontSize: SIZES.fontXl,
             fontWeight: '700',
           },
         }}
@@ -112,7 +113,7 @@ const MainTabNavigator: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.surface,
   },
   iconContainer: {
     alignItems: 'center',
@@ -125,7 +126,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#25D366',
+    backgroundColor: COLORS.primary,
   },
 });
 

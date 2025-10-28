@@ -22,6 +22,8 @@ export const COLLECTION_NAMES = {
   CHATS: 'chats',
   GROUPS: 'groups',
   MESSAGES: 'messages',
+  STATUS: 'status',
+  USER_SETTINGS: 'userSettings',
 } as const;
 
 // ============================================
