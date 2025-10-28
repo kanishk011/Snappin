@@ -194,10 +194,12 @@ export const createGroup = async (groupData: {
       unreadCount[memberId] = 0;
     });
 
-    const newGroupData: CreateGroupInput = {
+    // Remove undefined values and set null for optional fields
+    const newGroupData: any = {
       name: groupData.name,
-      avatar: groupData.avatar,
-      description: groupData.description,
+      // Use null instead of undefined for optional fields
+      avatar: groupData.avatar || null,
+      description: groupData.description || null,
       members: groupData.members,
       admins: [groupData.createdBy], // Creator is the first admin
       createdBy: groupData.createdBy,
@@ -207,6 +209,13 @@ export const createGroup = async (groupData: {
       updatedAt: serverTimestamp(),
       unreadCount,
     };
+
+    // Remove any remaining undefined values
+    Object.keys(newGroupData).forEach(key => {
+      if (newGroupData[key] === undefined) {
+        delete newGroupData[key];
+      }
+    });
 
     const groupRef = await addDoc(groupsRef, newGroupData);
     return groupRef.id;
