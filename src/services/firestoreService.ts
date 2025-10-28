@@ -58,17 +58,33 @@ export const createOrUpdateUser = async (
   }
 ) => {
   try {
-    const docData = {
+    // Build document data, excluding undefined fields
+    const docData: any = {
       name: userData.name,
-      email: userData.email,
-      avatar: userData.avatar,
       status: userData.status || 'online',
       updatedAt: serverTimestamp(),
-      createdAt: serverTimestamp(),
       lastSeen: serverTimestamp(),
     };
 
+    // Only add optional fields if they have values
+    if (userData.email) {
+      docData.email = userData.email;
+    }
+
+    if (userData.avatar) {
+      docData.avatar = userData.avatar;
+    }
+
     const userRef = doc(db, COLLECTION_NAMES.USERS, userId);
+
+    // Check if document exists
+    const userDoc = await getDoc(userRef);
+
+    if (!userDoc.exists()) {
+      // First time creating user, add createdAt
+      docData.createdAt = serverTimestamp();
+    }
+
     await setDoc(userRef, docData, { merge: true });
 
   } catch (error) {
