@@ -1,6 +1,12 @@
 import { IMessage } from 'react-native-gifted-chat';
 import { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
 
+// Read receipt interface
+export interface ReadReceipt {
+  userId: string;
+  timestamp: Date | FirebaseFirestoreTypes.Timestamp;
+}
+
 // Extended message interface to support additional features
 export interface ExtendedMessage extends IMessage {
   replyTo?: {
@@ -12,6 +18,13 @@ export interface ExtendedMessage extends IMessage {
     };
   };
   firestoreDocId?: string; // Firestore document ID for deletion
+  document?: {
+    url: string;
+    name: string;
+    size?: number;
+    type?: string;
+  };
+  readBy?: ReadReceipt[]; // Array of users who have read this message
 }
 
 export interface User {

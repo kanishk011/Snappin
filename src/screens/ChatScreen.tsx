@@ -13,7 +13,8 @@ import {
   PermissionsAndroid,
   Linking,
 } from 'react-native';
-import { GiftedChat, IMessage, Bubble, Send, InputToolbar, Actions, MessageImage, MessageVideo } from 'react-native-gifted-chat';
+import { GiftedChat, IMessage, Bubble, Send, InputToolbar, Actions, MessageImage } from 'react-native-gifted-chat';
+import Video from 'react-native-video';
 import { Contact, Group, ExtendedMessage } from '../types';
 import {
   subscribeToMessages,
@@ -21,15 +22,18 @@ import {
   getChatId,
   createPersonalChat,
   deleteMessage,
+  markMessageAsRead,
 } from '../services/firestoreService';
 import { uploadMediaFile } from '../services/storageService';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/types';
 import { launchImageLibrary, launchCamera, ImagePickerResponse } from 'react-native-image-picker';
-import { pick, types, PickerErrorCode, DocumentPickerResponse } from '@react-native-documents/picker';
+import { pick, types } from '@react-native-documents/picker';
 import { EmojiPopup } from 'react-native-emoji-popup';
 import Icon from '@react-native-vector-icons/ionicons';
+import AttachmentModal from '../components/AttachmentModal';
+import ReactNativeBlobUtil from 'react-native-blob-util';
 
 type ChatScreenRouteProp = RouteProp<RootStackParamList, 'Chat'>;
 
@@ -41,6 +45,7 @@ const ChatScreen: React.FC = () => {
   const [replyToMessage, setReplyToMessage] = useState<ExtendedMessage | null>(null);
   const [inputText, setInputText] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [showAttachmentModal, setShowAttachmentModal] = useState(false);
   const { user } = useAuth();
   const giftedChatRef = useRef<any>(null);
 
@@ -69,6 +74,59 @@ const ChatScreen: React.FC = () => {
 
     return () => unsubscribe();
   }, [user, contact, group, chatType]);
+
+  // Mark messages as read when they appear
+  useEffect(() => {
+    if (!user || messages.length === 0) return;
+
+    let chatId = '';
+    let isGroup = false;
+
+    if (chatType === 'personal' && contact) {
+      chatId = getChatId(user.uid, contact._id);
+    } else if (chatType === 'group' && group) {
+      chatId = group._id;
+      isGroup = true;
+    }
+
+    if (!chatId) return;
+
+    // Mark unread messages as read
+    const markUnreadMessages = async () => {
+      for (const message of messages) {
+        const extendedMessage = message as ExtendedMessage;
+
+        // Skip if this is the user's own message
+        if (extendedMessage.user._id === user.uid) continue;
+
+        // Check if user has already read this message
+        const hasRead = extendedMessage.readBy?.some(
+          (receipt) => receipt.userId === user.uid
+        );
+
+        // Mark as read if not already read
+        if (!hasRead && extendedMessage.firestoreDocId) {
+          try {
+            await markMessageAsRead(
+              chatId,
+              extendedMessage.firestoreDocId,
+              user.uid,
+              isGroup
+            );
+          } catch (error) {
+            console.error('Error marking message as read:', error);
+          }
+        }
+      }
+    };
+
+    // Debounce the marking to avoid too many writes
+    const timeoutId = setTimeout(() => {
+      markUnreadMessages();
+    }, 1000);
+
+    return () => clearTimeout(timeoutId);
+  }, [messages, user, contact, group, chatType]);
 
   // Android 13+ permission handling
   const requestStoragePermission = async (): Promise<boolean> => {
@@ -318,7 +376,7 @@ const ChatScreen: React.FC = () => {
         isGroup = true;
       }
 
-      // Upload to Firebase Storage
+      // Upload to Firebase Storage - react-native-blob-util will handle content:// URIs
       const downloadURL = await uploadMediaFile(asset.uri, chatId, isGroup, 'video');
 
       // Send message with video
@@ -372,7 +430,7 @@ const ChatScreen: React.FC = () => {
           types.csv,
         ],
         allowMultiSelection: false,
-        mode: 'open',
+        copyTo: 'cachesDirectory', // Copy to cache for reliable access
       });
 
       if (!result || result.length === 0) return;
@@ -403,8 +461,20 @@ const ChatScreen: React.FC = () => {
         isGroup = true;
       }
 
+      // For Android content:// URIs, react-native-blob-util will handle the conversion
+      // in the storageService. Use fileCopyUri if available, otherwise use original uri
+      const fileUri = (file as any).fileCopyUri || file.uri;
+
+      // Validate fileUri is not null
+      if (!fileUri) {
+        console.error('File URI is null or undefined:', file);
+        Alert.alert('Error', 'Could not access the selected file. Please try again.');
+        setUploading(false);
+        return;
+      }
+
       // Upload to Firebase Storage
-      const downloadURL = await uploadMediaFile(file.uri, chatId, isGroup, 'document', file.name);
+      const downloadURL = await uploadMediaFile(fileUri, chatId, isGroup, 'document', file.name);
 
       // Get file icon based on type
       const getFileIcon = (fileName: string) => {
@@ -452,7 +522,7 @@ const ChatScreen: React.FC = () => {
       setUploading(false);
     } catch (error: any) {
       // Check if user cancelled
-      if (error?.code === PickerErrorCode.cancelled) {
+      if (error?.code === 'DOCUMENT_PICKER_CANCELED') {
         return;
       }
       console.error('Error picking document:', error);
@@ -582,6 +652,58 @@ const ChatScreen: React.FC = () => {
   const renderBubble = (props: any) => {
     const currentMessage = props.currentMessage as ExtendedMessage;
 
+    // Helper function to get read status
+    const getReadStatus = () => {
+      if (!currentMessage.readBy || currentMessage.user._id !== user?.uid) {
+        return null; // Don't show read receipts for other users' messages
+      }
+
+      const readBy = currentMessage.readBy;
+
+      // For personal chats
+      if (chatType === 'personal' && contact) {
+        const otherUserRead = readBy.some((receipt) => receipt.userId === contact._id);
+        return otherUserRead ? (
+          <View style={styles.readReceiptContainer}>
+            <Icon name="checkmark-done" size={16} color="#4CD964" />
+          </View>
+        ) : (
+          <View style={styles.readReceiptContainer}>
+            <Icon name="checkmark" size={16} color="#E5F1FF" />
+          </View>
+        );
+      }
+
+      // For group chats
+      if (chatType === 'group' && group) {
+        const readCount = readBy.filter((receipt) => receipt.userId !== user?.uid).length;
+        const totalMembers = group.members.length - 1; // Exclude self
+
+        if (readCount === 0) {
+          return (
+            <View style={styles.readReceiptContainer}>
+              <Icon name="checkmark" size={16} color="#E5F1FF" />
+            </View>
+          );
+        } else if (readCount === totalMembers) {
+          return (
+            <View style={styles.readReceiptContainer}>
+              <Icon name="checkmark-done" size={16} color="#4CD964" />
+            </View>
+          );
+        } else {
+          return (
+            <View style={styles.readReceiptContainer}>
+              <Icon name="checkmark-done" size={16} color="#E5F1FF" />
+              <Text style={styles.readCountText}>{readCount}</Text>
+            </View>
+          );
+        }
+      }
+
+      return null;
+    };
+
     return (
       <View>
         {currentMessage.replyTo && (
@@ -595,39 +717,43 @@ const ChatScreen: React.FC = () => {
             </View>
           </View>
         )}
-        <Bubble
-          {...props}
-          wrapperStyle={{
-            right: {
-              backgroundColor: '#007AFF',
-              marginRight: 4,
-              marginVertical: 4,
-            },
-            left: {
-              backgroundColor: '#E5E5EA',
-              marginLeft: 4,
-              marginVertical: 4,
-            },
-          }}
-          textStyle={{
-            right: {
-              color: '#fff',
-              fontSize: 16,
-            },
-            left: {
-              color: '#000',
-              fontSize: 16,
-            },
-          }}
-          timeTextStyle={{
-            right: {
-              color: '#E5F1FF',
-            },
-            left: {
-              color: '#666',
-            },
-          }}
-        />
+        <View style={styles.bubbleContainer}>
+          <Bubble
+            {...props}
+            wrapperStyle={{
+              right: {
+                backgroundColor: '#007AFF',
+                marginRight: 4,
+                marginVertical: 4,
+              },
+              left: {
+                backgroundColor: '#E5E5EA',
+                marginLeft: 4,
+                marginVertical: 4,
+              },
+            }}
+            textStyle={{
+              right: {
+                color: '#fff',
+                fontSize: 16,
+              },
+              left: {
+                color: '#000',
+                fontSize: 16,
+              },
+            }}
+            timeTextStyle={{
+              right: {
+                color: '#E5F1FF',
+              },
+              left: {
+                color: '#666',
+              },
+            }}
+          />
+          {/* Read receipt indicator */}
+          {getReadStatus()}
+        </View>
         {/* Show download button for documents */}
         {currentMessage?.document && (
           <TouchableOpacity
@@ -636,9 +762,11 @@ const ChatScreen: React.FC = () => {
               currentMessage.user._id === user?.uid ? styles.documentDownloadButtonRight : styles.documentDownloadButtonLeft,
             ]}
             onPress={() => {
-              Linking.openURL(currentMessage.document.url).catch(() =>
-                Alert.alert('Error', 'Unable to open document')
-              );
+              if (currentMessage.document?.url) {
+                Linking.openURL(currentMessage.document.url).catch(() =>
+                  Alert.alert('Error', 'Unable to open document')
+                );
+              }
             }}
           >
             <Icon name="download-outline" size={16} color={currentMessage.user._id === user?.uid ? '#fff' : '#007AFF'} />
@@ -666,6 +794,33 @@ const ChatScreen: React.FC = () => {
     );
   };
 
+  const attachmentOptions = [
+    {
+      icon: 'camera',
+      label: 'Camera',
+      color: '#FF3B30',
+      onPress: handleTakePhoto,
+    },
+    {
+      icon: 'images',
+      label: 'Gallery',
+      color: '#5856D6',
+      onPress: handlePickImage,
+    },
+    {
+      icon: 'videocam',
+      label: 'Video',
+      color: '#FF9500',
+      onPress: handlePickVideo,
+    },
+    {
+      icon: 'document-text',
+      label: 'Document',
+      color: '#007AFF',
+      onPress: handlePickDocument,
+    },
+  ];
+
   const renderActions = (props: any) => {
     return (
       <View style={styles.actionsContainer}>
@@ -680,33 +835,7 @@ const ChatScreen: React.FC = () => {
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => {
-            Alert.alert(
-              'Choose Attachment',
-              'Select an option',
-              [
-                {
-                  text: '📷 Photo Library',
-                  onPress: handlePickImage,
-                },
-                {
-                  text: '📸 Take Photo',
-                  onPress: handleTakePhoto,
-                },
-                {
-                  text: '🎥 Video',
-                  onPress: handlePickVideo,
-                },
-                {
-                  text: '📄 Document',
-                  onPress: handlePickDocument,
-                },
-                {
-                  text: 'Cancel',
-                  style: 'cancel',
-                },
-              ],
-              { cancelable: true }
-            );
+            setShowAttachmentModal(true);
           }}
         >
           <Icon name="attach" size={28} color="#007AFF" />
@@ -756,19 +885,36 @@ const ChatScreen: React.FC = () => {
   };
 
   const renderMessageVideo = (props: any) => {
+    if (!props.currentMessage?.video) return null;
+
     return (
-      <MessageVideo
-        {...props}
-        videoProps={{
-          resizeMode: 'cover',
-          style: {
-            width: 200,
-            height: 200,
-            borderRadius: 13,
-            margin: 3,
-          },
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => {
+          // Handle video playback - can open in full screen
+          Linking.openURL(props.currentMessage.video).catch(() =>
+            Alert.alert('Error', 'Unable to play video')
+          );
         }}
-      />
+      >
+        <View style={styles.videoContainer}>
+          <Video
+            source={{ uri: props.currentMessage.video }}
+            style={{
+              width: 200,
+              height: 200,
+              borderRadius: 13,
+              margin: 3,
+            }}
+            resizeMode="cover"
+            paused={true}
+            controls={false}
+          />
+          <View style={styles.videoPlayButton}>
+            <Icon name="play-circle" size={48} color="rgba(255, 255, 255, 0.9)" />
+          </View>
+        </View>
+      </TouchableOpacity>
     );
   };
 
@@ -852,6 +998,13 @@ const ChatScreen: React.FC = () => {
           </View>
         </View>
       )}
+
+      {/* Attachment Modal */}
+      <AttachmentModal
+        visible={showAttachmentModal}
+        onClose={() => setShowAttachmentModal(false)}
+        options={attachmentOptions}
+      />
     </KeyboardAvoidingView>
   );
 };
@@ -1019,6 +1172,67 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: '#000',
+  },
+  videoContainer: {
+    position: 'relative',
+    width: 200,
+    height: 200,
+    borderRadius: 13,
+    overflow: 'hidden',
+    margin: 3,
+  },
+  videoPlayButton: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -24 }, { translateY: -24 }],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  documentDownloadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    marginHorizontal: 8,
+    marginBottom: 4,
+    borderRadius: 8,
+  },
+  documentDownloadButtonRight: {
+    backgroundColor: 'rgba(0, 122, 255, 0.8)',
+    alignSelf: 'flex-end',
+    marginRight: 4,
+  },
+  documentDownloadButtonLeft: {
+    backgroundColor: 'rgba(229, 229, 234, 0.8)',
+    alignSelf: 'flex-start',
+    marginLeft: 4,
+  },
+  documentDownloadText: {
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  documentDownloadTextRight: {
+    color: '#fff',
+  },
+  documentDownloadTextLeft: {
+    color: '#007AFF',
+  },
+  bubbleContainer: {
+    position: 'relative',
+  },
+  readReceiptContainer: {
+    position: 'absolute',
+    bottom: 4,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  readCountText: {
+    fontSize: 10,
+    color: '#E5F1FF',
+    marginLeft: 2,
+    fontWeight: '600',
   },
 });
 

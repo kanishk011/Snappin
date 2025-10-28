@@ -119,9 +119,18 @@ const ContactList: React.FC = () => {
   );
 };
 
-const formatTime = (date: Date | FirebaseFirestoreTypes.Timestamp): string => {
-  const dateObj = date instanceof Date ? date : date?.toDate();
-  if (!dateObj) return '';
+const formatTime = (date?: Date | FirebaseFirestoreTypes.Timestamp | null): string => {
+  if (!date) return '';
+
+  let dateObj: Date;
+
+  if (date instanceof Date) {
+    dateObj = date;
+  } else if (date && typeof date === 'object' && 'toDate' in date && typeof date.toDate === 'function') {
+    dateObj = date.toDate();
+  } else {
+    return '';
+  }
 
   const now = new Date();
   const diff = now.getTime() - dateObj.getTime();
@@ -129,7 +138,9 @@ const formatTime = (date: Date | FirebaseFirestoreTypes.Timestamp): string => {
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
 
-  if (minutes < 60) {
+  if (minutes < 1) {
+    return 'now';
+  } else if (minutes < 60) {
     return `${minutes}m`;
   } else if (hours < 24) {
     return `${hours}h`;

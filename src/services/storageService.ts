@@ -1,5 +1,6 @@
 import storage from '@react-native-firebase/storage';
 import { Platform } from 'react-native';
+import ReactNativeBlobUtil from 'react-native-blob-util';
 
 export type MediaType = 'image' | 'video' | 'document';
 
@@ -20,6 +21,11 @@ export const uploadMediaFile = async (
   fileName?: string
 ): Promise<string> => {
   try {
+    // Validate input
+    if (!uri || uri === 'null' || uri === 'undefined') {
+      throw new Error('Invalid file URI provided');
+    }
+
     // Generate a unique file name if not provided
     const timestamp = Date.now();
     const fileExtension = uri.split('.').pop() || 'jpg';
@@ -29,10 +35,27 @@ export const uploadMediaFile = async (
     const collectionType = isGroup ? 'groups' : 'chats';
     const storagePath = `${collectionType}/${chatId}/media/${finalFileName}`;
 
-    // Handle platform-specific URI formatting
+    // For Android content:// URIs, use react-native-blob-util to get the actual file path
     let uploadUri = uri;
-    if (Platform.OS === 'android' && !uri.startsWith('file://')) {
-      uploadUri = `file://${uri}`;
+
+    if (Platform.OS === 'android') {
+      if (uri.startsWith('content://')) {
+        // Decode the URI first (fixes %3A encoding issues)
+        const decodedUri = decodeURIComponent(uri);
+
+        // Use react-native-blob-util to convert content URI to real path
+        // This resolves the Permission Denial issue
+        try {
+          const stat = await ReactNativeBlobUtil.fs.stat(decodedUri);
+          uploadUri = stat.path;
+        } catch (statError) {
+          console.warn('Could not stat file, trying direct upload with content URI');
+          // If stat fails, try uploading the content URI directly
+          uploadUri = decodedUri;
+        }
+      } else if (!uri.startsWith('file://')) {
+        uploadUri = `file://${uri}`;
+      }
     }
 
     // Upload the file
