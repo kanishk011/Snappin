@@ -75,6 +75,22 @@ service firebase.storage {
                        (isDocument() && isValidDocumentSize()));
     }
 
+    // Status media files (images, videos)
+    match /status/{userId}/{fileName} {
+      // Anyone can read status media (public statuses)
+      allow read: if true;
+
+      // Users can upload their own status media
+      allow write: if isAuthenticated() &&
+                      request.auth.uid == userId &&
+                      ((isImage() && isValidImageSize()) ||
+                       (isVideo() && isValidVideoSize()));
+
+      // Users can delete their own status media
+      allow delete: if isAuthenticated() &&
+                       request.auth.uid == userId;
+    }
+
     // Default: deny all other access
     match /{allPaths=**} {
       allow read, write: if false;
