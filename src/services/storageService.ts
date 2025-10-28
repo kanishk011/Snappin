@@ -28,30 +28,33 @@ export const uploadMediaFile = async (
 
     // Generate a unique file name if not provided
     const timestamp = Date.now();
-    const fileExtension = uri.split('.').pop() || 'jpg';
+    const fileExtension = uri.split('.').pop() || getDefaultExtension(mediaType);
     const finalFileName = fileName || `${mediaType}_${timestamp}.${fileExtension}`;
 
     // Determine the storage path
     const collectionType = isGroup ? 'groups' : 'chats';
     const storagePath = `${collectionType}/${chatId}/media/${finalFileName}`;
 
-    // For Android content:// URIs, use react-native-blob-util to get the actual file path
     let uploadUri = uri;
 
     if (Platform.OS === 'android') {
       if (uri.startsWith('content://')) {
-        // Decode the URI first (fixes %3A encoding issues)
-        const decodedUri = decodeURIComponent(uri);
-
-        // Use react-native-blob-util to convert content URI to real path
-        // This resolves the Permission Denial issue
-        try {
-          const stat = await ReactNativeBlobUtil.fs.stat(decodedUri);
-          uploadUri = stat.path;
-        } catch (statError) {
-          console.warn('Could not stat file, trying direct upload with content URI');
-          // If stat fails, try uploading the content URI directly
-          uploadUri = decodedUri;
+        // For document content URIs, we need special handling
+        if (mediaType === 'document') {
+          // Use react-native-blob-util to copy the file to a temporary location
+          // This resolves the Permission Denial issue for documents
+          const fileCopyUri = await copyDocumentToTemp(uri, finalFileName);
+          uploadUri = fileCopyUri;
+        } else {
+          // For images and videos, use the existing approach
+          const decodedUri = decodeURIComponent(uri);
+          try {
+            const stat = await ReactNativeBlobUtil.fs.stat(decodedUri);
+            uploadUri = stat.path;
+          } catch (statError) {
+            console.warn('Could not stat file, trying direct upload with content URI');
+            uploadUri = decodedUri;
+          }
         }
       } else if (!uri.startsWith('file://')) {
         uploadUri = `file://${uri}`;
@@ -62,6 +65,15 @@ export const uploadMediaFile = async (
     const reference = storage().ref(storagePath);
     await reference.putFile(uploadUri);
 
+    // Clean up temporary file if it was created for documents
+    if (Platform.OS === 'android' && mediaType === 'document' && uploadUri !== uri) {
+      try {
+        await ReactNativeBlobUtil.fs.unlink(uploadUri);
+      } catch (cleanupError) {
+        console.warn('Could not clean up temporary file:', cleanupError);
+      }
+    }
+
     // Get the download URL
     const downloadURL = await reference.getDownloadURL();
     return downloadURL;
@@ -70,6 +82,44 @@ export const uploadMediaFile = async (
     throw error;
   }
 };
+
+/**
+ * Copy document from content URI to temporary file location
+ * This resolves the permission issues with document URIs
+ */
+const copyDocumentToTemp = async (contentUri: string, fileName: string): Promise<string> => {
+  try {
+    // Create a temporary file path
+    const tempDir = ReactNativeBlobUtil.fs.dirs.CacheDir;
+    const tempFilePath = `${tempDir}/${fileName}`;
+
+    // Copy the file from content URI to temporary location
+    await ReactNativeBlobUtil.fs.cp(contentUri, tempFilePath);
+
+    return tempFilePath;
+  } catch (error) {
+    console.error('Error copying document to temp:', error);
+    throw new Error('Failed to access document file');
+  }
+};
+
+/**
+ * Get default file extension based on media type
+ */
+const getDefaultExtension = (mediaType: MediaType): string => {
+  switch (mediaType) {
+    case 'image':
+      return 'jpg';
+    case 'video':
+      return 'mp4';
+    case 'document':
+      return 'pdf';
+    default:
+      return 'file';
+  }
+};
+
+// ... rest of your existing functions (deleteMediaFile, getFileMetadata) remain the same
 
 /**
  * Delete a media file from Firebase Storage
